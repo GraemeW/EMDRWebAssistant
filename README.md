@@ -107,8 +107,9 @@ The server runs on Node (CommonJS, no DOM) and the client runs in the browser as
 
 ## How it works
 
-- **Server (`server.ts`)** holds the one authoritative session: current shape/color/size/speed/range/background/running state, plus an "anchor" (a position + direction + instantaneous speed + timestamp) it can use to analytically compute where the bobble is — and how fast it's currently moving — at any later moment. This mirrors `BobbleMover.cs`'s ping-pong motion and its speed-ramp easing, expressed as a closed-form formula (a piecewise ramp-then-constant speed profile, integrated to get distance) instead of a per-frame physics step, so the server never needs to run a game loop — it only recomputes on changes.
+- **Server (`server.ts`)** holds the one authoritative session: current shape/color/size/speed/range/background/running state, plus an "anchor" (a position + direction + instantaneous speed + timestamp) it can use to analytically compute bobble speed/position at any later moment. 
+  - This mirrors `BobbleMover.cs`'s ping-pong motion and its speed-ramp easing, expressed as a closed-form formula (a piecewise ramp-then-constant speed profile, integrated to get distance) instead of a per-frame physics step, so the server never needs to run a game loop.
 - Only one WebSocket connection can hold the **director** role at a time. If the director disconnects, the bobble keeps doing whatever it was doing, and the seat is free to reclaim.
 - The other connection is a **viewer**: read-only, gets the live state and renders the same motion locally using the same shared `computeAt` formula, so all screens track closely without the server streaming a position every frame.
 - State changes (color, shape, size, speed, range, play/pause, reset) are broadcast to everyone instantly over WebSocket.
-- 
+  
