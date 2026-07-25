@@ -1,21 +1,18 @@
-// Shared, type-only contract between server and client. Every value here
-// is either an interface or a union of literal types — nothing runtime —
-// so `import type { ... }` on both sides erases completely at compile time.
+// ---------------------------------------------------------------------------
+// Core
+// ---------------------------------------------------------------------------
 
 export type BobbleShape = 'circle' | 'square' | 'triangle';
 
 export type Direction = 1 | -1;
 
-/** A frozen snapshot the position/speed formula can be re-derived from at any later time. */
 export interface Anchor {
   fraction: number;
   direction: Direction;
-  /** Instantaneous fractional speed at time `t` — may be mid-ramp. */
   speed: number;
   t: number;
 }
 
-/** The authoritative, server-owned bobble session. */
 export interface SessionState {
   shape: BobbleShape;
   bobbleColor: string;
@@ -23,12 +20,10 @@ export interface SessionState {
   size: number;
   speed: number;
   range: number;
-  /** Desired play/pause state, as last commanded by the director. */
   running: boolean;
   anchor: Anchor;
 }
 
-/** SessionState plus fields only relevant once it's broadcast to clients. */
 export interface PublicState extends SessionState {
   adminOnline: boolean;
   viewerCount: number;
@@ -41,7 +36,6 @@ export type Role = 'admin' | 'viewer';
 // Client -> Server
 // ---------------------------------------------------------------------------
 
-/** Every admin control action, discriminated on `action`. */
 export type ControlAction =
   | { action: 'setShape'; value: BobbleShape }
   | { action: 'setBobbleColor'; value: string }

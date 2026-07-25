@@ -1,23 +1,11 @@
-// TypeScript's types disappear at runtime. Anything that came off the wire
-// via JSON.parse is `unknown`, not `ClientMessage` or `ServerMessage`, no
-// matter what we declare — a malicious or just-out-of-sync peer can send
-// anything. These guards are the actual safety boundary; the types in
-// shared/types.ts only describe what's on the *other* side of it.
-
 import type { BobbleShape, ClientMessage, ServerMessage } from './types.js';
 
+// Tunables
 const BOBBLE_SHAPES: readonly BobbleShape[] = ['circle', 'square', 'triangle'];
 
+// Export Functions
 export function isBobbleShape(x: unknown): x is BobbleShape {
   return typeof x === 'string' && (BOBBLE_SHAPES as readonly string[]).includes(x);
-}
-
-function isFiniteNumber(x: unknown): x is number {
-  return typeof x === 'number' && Number.isFinite(x);
-}
-
-function isRecord(x: unknown): x is Record<string, unknown> {
-  return typeof x === 'object' && x !== null;
 }
 
 export function isClientMessage(x: unknown): x is ClientMessage {
@@ -64,13 +52,20 @@ export function isServerMessage(x: unknown): x is ServerMessage {
     case 'joined':
       return x.role === 'admin' || x.role === 'viewer' || x.role === null;
     case 'state':
-      // The state payload's own shape is trusted here since it only ever
-      // comes from our own server; deep-validating every field would be
-      // reasonable too, but isn't needed for a same-origin protocol like this.
+      // The state payload's own shape is trusted here since it only ever comes from our own server
       return isRecord(x.state);
     case 'pong':
       return isFiniteNumber(x.t) && isFiniteNumber(x.serverTime);
     default:
       return false;
   }
+}
+
+// Local Functions
+function isFiniteNumber(x: unknown): x is number {
+  return typeof x === 'number' && Number.isFinite(x);
+}
+
+function isRecord(x: unknown): x is Record<string, unknown> {
+  return typeof x === 'object' && x !== null;
 }
