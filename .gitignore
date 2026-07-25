@@ -1,2 +1,5 @@
 *.map
 node_modules
+dist
+public/client
+public/shared
