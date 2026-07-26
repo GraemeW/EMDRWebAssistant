@@ -114,6 +114,8 @@ The server runs on Node (CommonJS, no DOM) and the client runs in the browser as
 `tsconfig.json` at the root doesn't compile anything itself (`"files": []`), it just `references` the two leaf configs. Editors discover a project's settings by walking up from an open file to the nearest `tsconfig.json`, and having only `tsconfig.server.json`/
 `tsconfig.client.json` (no plain `tsconfig.json`) means an editor may not find either one and fall back to an inferred default project with different defaults.  This can produce confusing type errors that don't reproduce when you actually run `npm run typecheck`. One side effect: composite mode requires declaration output, so you'll see `.d.ts` files alongside the compiled `.js` in `dist/`/`public/client/`/`public/shared/`.
 
+Note also that `tsconfig.server.json` sets `"module": "Node16"` / `"moduleResolution": "Node16"` (not the older `"moduleResolution": "Node"`). `Node16` mode still emits plain CommonJS.  This is purely a function of `package.json` having no `"type": "module"` field, but is also a requirement re: relative imports to include their extension (e.g. `from './server/config.js'`).
+
 ## Basic Functionality Overview
 
 - **Server (`server.ts`)** holds the one authoritative session: current shape/color/size/speed/range/background/running state, plus an "anchor" (a position + direction + instantaneous speed + timestamp) it can use to analytically compute bobble speed/position at any later moment. 
