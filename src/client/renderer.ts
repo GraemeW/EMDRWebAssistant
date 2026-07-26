@@ -43,10 +43,10 @@ export class BobbleRenderer {
       bobbleEl.style.borderRight = `${diameter / 2}px solid transparent`;
       bobbleEl.style.borderBottom = `${diameter * 0.87}px solid ${state.bobbleColor}`;
     } else {
-      bobbleEl.style.border = 'none';
       bobbleEl.style.width = `${diameter}px`;
       bobbleEl.style.height = `${diameter}px`;
       bobbleEl.style.background = state.bobbleColor;
+      bobbleEl.style.border = `2px solid ${state.backgroundColor}`;
     }
   }
 }

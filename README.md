@@ -1,6 +1,8 @@
 # EMDR Web Assistant
 
-A NodeJS port of the Unity EMDR Assistant app. One person joins as the **director** and controls shape, color, size, speed, travel range, background color, and play/pause. The client can thenb join as a **viewer** and watch the same bobble, in sync, in real time.
+A NodeJS port of the Unity EMDR Assistant app. One person joins as the **director** and controls shape, color, size, speed, travel range, background color, and play/pause. The client can then join as a **viewer** and watch the same bobble, in sync, in real time.
+
+![](./docs/EMDRWebApp-Demo.gif)
 
 Written in TypeScript, strict mode, with a shared, type-checked message protocol between the server and browser client (details below).
 
