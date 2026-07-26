@@ -205,6 +205,24 @@ input[type="color"]:focus-visible {
   color: var(--ink-dim);
 }
 
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: var(--radius);
+  border: 1px solid var(--panel-line);
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.05s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.icon-btn:hover { color: var(--ink); border-color: var(--ink-dim); }
+.icon-btn:active { transform: translateY(1px); }
+
 .stage-wrap {
   flex: 1;
   display: flex;

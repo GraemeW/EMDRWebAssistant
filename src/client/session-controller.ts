@@ -49,6 +49,7 @@ export class SessionController {
 
     this.bindLandingControls();
     this.bindAdminControls();
+    this.bindFullscreenControl();
 
     this.connection.connect();
     this.renderer.start(() => this.renderInput());
@@ -156,6 +157,26 @@ export class SessionController {
     adminHint.textContent = '';
     this.connection.send({ type: 'join', role: 'admin', digest });
   }
+  
+  // Header
+  private bindFullscreenControl(): void {
+    btnFullscreen.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen().catch(() => {});
+      }
+    });
+
+    document.addEventListener('fullscreenchange', () => this.updateFullscreenLabel());
+    this.updateFullscreenLabel();
+  }
+
+  private updateFullscreenLabel(): void {
+    const label = document.fullscreenElement ? 'Exit fullscreen' : 'Enter fullscreen';
+    btnFullscreen.setAttribute('aria-label', label);
+    btnFullscreen.title = label;
+  }
 
   // Admin control dock
 
@@ -182,14 +203,6 @@ export class SessionController {
     rangeSlider.addEventListener('input', () => this.sendControl({ action: 'setRange', value: Number(rangeSlider.value) }),);
     bobbleColorInput.addEventListener('input', () => this.sendControl({ action: 'setBobbleColor', value: bobbleColorInput.value }),);
     backgroundColorInput.addEventListener('input', () => this.sendControl({ action: 'setBackgroundColor', value: backgroundColorInput.value }),);
-    
-    btnFullscreen.addEventListener('click', () => {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(() => {});
-      } else {
-        document.exitFullscreen().catch(() => {});
-      }
-    });
   }
 
   // Reflect server state into the UI
