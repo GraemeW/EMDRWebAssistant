@@ -2,7 +2,7 @@
   "name": "emdr-bobble-web",
   "version": "1.0.0",
   "private": true,
-  "description": "Web port of the EMDR bobble app: one director drives it, any number of viewers watch in sync.",
+  "description": "EMDR Web Assistant",
   "main": "dist/server.js",
   "scripts": {
     "build": "npm run build:server && npm run build:client",

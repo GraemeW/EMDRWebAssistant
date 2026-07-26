@@ -3,18 +3,16 @@ import type { BobbleShape, ClientMessage, ServerMessage } from './types.js';
 // Tunables
 const BOBBLE_SHAPES: readonly BobbleShape[] = ['circle', 'square', 'triangle'];
 
-// Export Functions
-export function isBobbleShape(x: unknown): x is BobbleShape {
-  return typeof x === 'string' && (BOBBLE_SHAPES as readonly string[]).includes(x);
-}
+// Type Validation
+export function isBobbleShape(x: unknown): x is BobbleShape { return typeof x === 'string' && (BOBBLE_SHAPES as readonly string[]).includes(x); }
 
 export function isClientMessage(x: unknown): x is ClientMessage {
-  if (!isRecord(x)) return false;
+  if (!isRecord(x)) { return false; }
 
   switch (x.type) {
     case 'join':
-      if (x.role === 'admin') return typeof x.username === 'string';
-      if (x.role === 'viewer') return true;
+      if (x.role === 'admin') { return typeof x.digest === 'string'; }
+      if (x.role === 'viewer') { return true; }
       return false;
 
     case 'control':
@@ -46,7 +44,7 @@ export function isClientMessage(x: unknown): x is ClientMessage {
 }
 
 export function isServerMessage(x: unknown): x is ServerMessage {
-  if (!isRecord(x)) return false;
+  if (!isRecord(x)) { return false; }
 
   switch (x.type) {
     case 'joined':
@@ -56,16 +54,16 @@ export function isServerMessage(x: unknown): x is ServerMessage {
       return isRecord(x.state);
     case 'pong':
       return isFiniteNumber(x.t) && isFiniteNumber(x.serverTime);
+    case 'challenge':
+      return typeof x.nonce === 'string';
+    case 'kicked':
+      return typeof x.reason === 'string';
     default:
       return false;
   }
 }
 
 // Local Functions
-function isFiniteNumber(x: unknown): x is number {
-  return typeof x === 'number' && Number.isFinite(x);
-}
+function isFiniteNumber(x: unknown): x is number { return typeof x === 'number' && Number.isFinite(x); }
 
-function isRecord(x: unknown): x is Record<string, unknown> {
-  return typeof x === 'object' && x !== null;
-}
+function isRecord(x: unknown): x is Record<string, unknown> { return typeof x === 'object' && x !== null; }

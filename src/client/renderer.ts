@@ -13,7 +13,7 @@ export class BobbleRenderer {
   start(getInput: () => RenderInput): void {
     const loop = (): void => {
       const { state, now, visible } = getInput();
-      if (state && visible) this.paint(state, now);
+      if (state && visible) { this.paint(state, now); }
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);

@@ -1,10 +1,10 @@
 # EMDR Web Assistant
 
-A NodeJS port of the Unity EMDR bobble app. One person joins as the **director** and controls shape, color, size, speed, travel range, background color, and play/pause. The client can thenb join as a **viewer** and watch the same bobble, in sync, in real time.
+A NodeJS port of the Unity EMDR Assistant app. One person joins as the **director** and controls shape, color, size, speed, travel range, background color, and play/pause. The client can thenb join as a **viewer** and watch the same bobble, in sync, in real time.
 
 Written in TypeScript, strict mode, with a shared, type-checked message protocol between the server and browser client (details below).
 
-## Running it
+## Running
 
 Requires Node.js (v18+) and npm.
 
@@ -15,13 +15,15 @@ npm start
 
 `npm start` builds the TypeScript (server + client) and then runs the compiled server. Open `http://localhost:3000` in a browser.
 
-By default the director username is `director`, to be updated with some level of encryption momentarily.
+By default the director passphrase is `director` — change it before deploying:
 
 ```bash
-ADMIN_USERNAME=myname PORT=8080 npm start
+DIRECTOR_PASSPHRASE="something only you know" PORT=8080 npm start
 ```
 
-### Other scripts
+Note: The director login uses the browser's native Web Crypto API, which browsers only expose in a secure context. Logging in as director will fail with a clear message if you deploy over plain HTTP on a LAN IP or a domain without TLS.
+
+### Other Scripts
 
 ```bash
 npm run typecheck   # type-check both the server and client, no output files
@@ -35,19 +37,26 @@ npx tsc -p tsconfig.server.json --watch    # terminal 1
 node --watch dist/server.js                # terminal 2 (also rebuild the client on change)
 ```
 
-## Deploying
+## Simple Deployment
 
-Copy the whole folder (or just `src/`, `public/index.html`, `public/style.css`, the `tsconfig*.json` files, and `package.json`) to any host that can run Node — a small VPS, Render, Railway, Fly.io, a Raspberry Pi, etc. Run `npm install && npm start` (or `npm run build` once, then `node dist/server.js` directly, and keep it alive with `pm2` / `systemd`). No database, no bundler, no build step beyond `tsc`.
+Copy the whole folder (or just `src/`, `public/index.html`, `public/style.css`, the `tsconfig*.json` files, and `package.json`) to any host that can run Node — a small VPS, Render, Railway, Fly.io, a Raspberry Pi, etc. Run `npm install && npm start` (or `npm run build` once, then `node dist/server.js` directly, and keep it alive with `pm2` / `systemd`).
 
 Nothing is persisted to disk — all settings reset to defaults each time the server process restarts.
 
-## Project layout
+Platforms like Render/Railway/Fly will handle 'keep it running' and the public URL — point them at the repo and they figure out `npm install`/`npm start`. If you're putting this on a server you already administer (e.g. Nginx or Apache), there are two separate jobs: 
+1. keeping the Node process running continuously in the background
+2. telling your existing web server to forward requests to it
+
+See [below](#deploying-behind-an-existing-nginx-or-apache) for a setup guide for this case.
+
+## Project Layout
 
 ```
 src/
   server.ts             Slim composition root: wires config/session/connections/router together
   server/
     config.ts             Env-derived config (PORT, ADMIN_USERNAME)
+    auth.ts                HMAC-SHA256 challenge-response verification
     bobble-session.ts      Bobble's physics state + applyControl
     connections.ts          WebSocket client/role bookkeeping
     message-router.ts       Parse incoming frames and ties session + connections together
@@ -82,8 +91,8 @@ point that  wires them together and starts things up:
 
 **Server** (`src/server.ts` wires these three together):
 - `BobbleSession` — owns the bobble's state and the rules for mutating it
-- `ConnectionRegistry` — owns the WebSocket client set and roles (who's the
-  one director, how many viewers)
+- `ConnectionRegistry` — owns the WebSocket client set /roles, and each connection's current auth nonce + failed-attempt count
+- `DirectorAuth` — issues nonces, verifies a login digest
 - `MessageRouter` — the only module that knows about both of the above:
   parses/validates incoming frames, decides what they mean, and composes
   the broadcasted `PublicState` from `BobbleSession` + `ConnectionRegistry`
@@ -98,18 +107,220 @@ point that  wires them together and starts things up:
   outgoing messages, reflects incoming state onto the UI, and feeds the
   renderer
 
-## Why two separate tsconfigs
+### Q:  Why two separate tsconfigs?
 
 The server runs on Node (CommonJS, no DOM) and the client runs in the browser as a native ES module (`<script type="module">`, no bundler) — two different runtimes with different `lib`/`module` needs, so they're two separate `tsc` invocations sharing one `tsconfig.base.json` for the actual strictness settings. `src/shared/*.ts` has zero Node- or DOM-specific APIs, so it gets compiled twice (once per target) from the same source — the bounce/ramp math and the message-protocol types are written exactly once, not duplicated between server and client.
 
 `tsconfig.json` at the root doesn't compile anything itself (`"files": []`), it just `references` the two leaf configs. Editors discover a project's settings by walking up from an open file to the nearest `tsconfig.json`, and having only `tsconfig.server.json`/
 `tsconfig.client.json` (no plain `tsconfig.json`) means an editor may not find either one and fall back to an inferred default project with different defaults.  This can produce confusing type errors that don't reproduce when you actually run `npm run typecheck`. One side effect: composite mode requires declaration output, so you'll see `.d.ts` files alongside the compiled `.js` in `dist/`/`public/client/`/`public/shared/`.
 
-## How it works
+## Basic Functionality Overview
 
 - **Server (`server.ts`)** holds the one authoritative session: current shape/color/size/speed/range/background/running state, plus an "anchor" (a position + direction + instantaneous speed + timestamp) it can use to analytically compute bobble speed/position at any later moment. 
   - This mirrors `BobbleMover.cs`'s ping-pong motion and its speed-ramp easing, expressed as a closed-form formula (a piecewise ramp-then-constant speed profile, integrated to get distance) instead of a per-frame physics step, so the server never needs to run a game loop.
 - Only one WebSocket connection can hold the **director** role at a time. If the director disconnects, the bobble keeps doing whatever it was doing, and the seat is free to reclaim.
 - The other connection is a **viewer**: read-only, gets the live state and renders the same motion locally using the same shared `computeAt` formula, so all screens track closely without the server streaming a position every frame.
 - State changes (color, shape, size, speed, range, play/pause, reset) are broadcast to everyone instantly over WebSocket.
-  
+
+## Director Login
+
+There's one shared passphrase (`DIRECTOR_PASSPHRASE`), not per-person accounts — this is intentionally lightweight and not a full auth system. 
+
+### Auth / Crypto Logistics
+
+On connecting, the server sends every client a random one-time nonce (`{ type: 'challenge' }`).  To log in, the browser computes `HMAC-SHA256(passphrase, nonce)` and sends only that digest. The server independently computes the same HMAC with its own copy of the passphrase and that connection's nonce, and compares in constant time.
+
+### Director Seat
+
+A correct login always wins the director seat, even from a second connection. There's no "sorry, someone's already directing" rejection — whoever most recently proved they know the passphrase gets the seat, and whoever held it before gets a `{ type: 'kicked' }` message and their connection closed. 
+
+This lets a director whose connection went stale (closed laptop, network hiccup, flaky wifi) reclaim control by logging in again, rather than being locked out until the old socket happens to time out.
+
+### Known Limitations
+
+- After 5 wrong attempts on one connection, the socket is closed
+  - This is scoped per-connection, not per-IP
+  - reconnecting gets a fresh budget, so it slows down casual/scripted guessing, but isn't a real defense against a determined attacker
+- There's no nonce expiry — a nonce is valid until it's used (successfully or not) or a new connection replaces it
+- None of this protects the passphrase from being learned some other way (someone tells a friend, it's visible over someone's shoulder, etc.) — same as any shared-secret scheme
+
+## Deploying Behind an Existing Nginx or Apache 
+
+**0. Get the code onto the server and build it once.**
+
+```bash
+git clone <repo-URL>
+npm ci
+npm run build
+```
+
+Pick a port only this app will use (examples below use `3000`) and a real passphrase.  Don't leave it as the default `director` on anything reachable by more than you.  Don't expose the Node process itself — only the reverse proxy needs to reach it over loopback.
+
+```bash
+# e.g. in /opt/emdr-assistant/.env, or set directly in the service files below
+PORT=3000
+HOST=127.0.0.1
+DIRECTOR_PASSPHRASE="something only you know"
+```
+
+**1. Keep it running: pick one.**
+
+<details open>
+<summary><strong>Option A — systemd</strong> (built into most Linux servers, survives reboots)</summary>
+
+Create `/etc/systemd/system/emdr-assistant.service`:
+
+```ini
+[Unit]
+Description=EMDR Web Assistant
+After=network.target
+
+[Service]
+Type=simple
+User=youruser
+WorkingDirectory=/opt/emdr-assistant
+Environment=PORT=3000
+Environment=HOST=127.0.0.1
+Environment=DIRECTOR_PASSPHRASE=something-only-you-know
+ExecStart=/usr/bin/node dist/server.js
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Replace `youruser` with whichever non-root user should own the process, and fix `WorkingDirectory` if you cloned it somewhere else. 
+
+Then:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now emdr-assistant
+sudo systemctl status emdr-assistant
+journalctl -u emdr-assistant -f
+```
+
+To pick up code changes later, run:
+
+ `git pull && npm ci && npm run build && sudo systemctl restart emdr-assistant`.
+
+</details>
+
+<details>
+<summary><strong>Option B — pm2</strong> (process manager built specifically for Node apps)</summary>
+
+```bash
+npm install -g pm2
+```
+
+Create `/opt/emdr-assistant/ecosystem.config.js`:
+
+```js
+module.exports = {
+  apps: [
+    {
+      name: 'emdr-assistant',
+      script: 'dist/server.js',
+      env: {
+        PORT: 3000,
+        HOST: '127.0.0.1',
+        DIRECTOR_PASSPHRASE: 'something-only-you-know',
+      },
+    },
+  ],
+};
+```
+
+Then:
+
+```bash
+cd /opt/emdr-assistant
+pm2 start ecosystem.config.js
+pm2 save # remember this process list
+pm2 startup # run what it prints
+```
+
+Useful commands: `pm2 status`, `pm2 logs emdr-assistant`, `pm2 restart emdr-assistant`.
+
+To pick up code changes later, run:
+
+`git pull && npm ci && npm run build && pm2 restart emdr-assistant`.
+
+</details>
+
+**2. Point your existing web server at it.**
+
+This app uses WebSockets (for the real-time sync between director and viewers), which need a couple of extra config lines beyond a normal reverse proxy.  Without them, the page will load but the "Start session"/"Join session" buttons will silently do
+nothing, since the WebSocket connection never completes.
+
+<details open>
+<summary><strong>Nginx</strong></summary>
+
+Add a server block (in `/etc/nginx/sites-available/`, or wherever your existing sites are configured — e.g. `/etc/nginx/sites-available/emdr-assistant`, then symlink it into `sites-enabled`):
+
+```nginx
+server {
+    listen 80;
+    server_name emdr-assistant.example.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+</details>
+
+<details>
+<summary><strong>Apache</strong></summary>
+
+Enable the required modules (only needed once):
+
+```bash
+sudo a2enmod proxy proxy_http proxy_wstunnel rewrite
+```
+
+Add a virtual host (in `/etc/apache2/sites-available/emdr-assistant.conf`, then
+`sudo a2ensite emdr-assistant`):
+
+```apache
+<VirtualHost *:80>
+    ServerName emdr-assistant.example.com
+
+    ProxyPreserveHost On
+
+    RewriteEngine On
+    RewriteCond %{HTTP:Upgrade} websocket [NC]
+    RewriteCond %{HTTP:Connection} upgrade [NC]
+    RewriteRule ^/?(.*) "ws://127.0.0.1:3000/$1" [P,L]
+
+    ProxyPass / http://127.0.0.1:3000/
+    ProxyPassReverse / http://127.0.0.1:3000/
+</VirtualHost>
+```
+
+```bash
+sudo apache2ctl configtest   # (RHEL/CentOS: httpd -t)
+sudo systemctl reload apache2   # (RHEL/CentOS: systemctl reload httpd)
+```
+
+</details>
+
+**3. Add HTTPS.** The director login specifically needs it — see the note under "Running it" above (viewers work fine without it, but logging in as director will fail on plain HTTP over a real domain).
+
+**4. Firewall.** Make sure port `3000` (or whatever you picked) is **not** opened externally — only Nginx/Apache should reach it, over `127.0.0.1`, which is what `HOST=127.0.0.1` above enforces even if a firewall rule is ever misconfigured. If you're using `ufw`, something like `sudo ufw allow 'Nginx Full'` (or the Apache equivalent) for ports 80/443 is normally enough; you shouldn't need to touch port 3000 at all.
+
+**5. Test it:** open `https://emdr-assistant.example.com` in a browser, join as director, and confirm the bobble responds to the controls. Then open the same URL in a second tab/device and join as viewer to confirm sync.

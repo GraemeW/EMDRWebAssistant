@@ -1,10 +1,11 @@
 import type { ControlAction, PublicState, Role, ServerMessage } from '../shared/types.js';
 import { isBobbleShape } from '../shared/validate.js';
+import { hmacSha256Hex, isSecureCryptoAvailable } from './crypto.js';
 import type { ServerConnection } from './connection.js';
 import type { BobbleRenderer, RenderInput } from './renderer.js';
 import {
   landing,
-  usernameInput,
+  passphraseInput,
   btnJoinAdmin,
   btnJoinViewer,
   adminHint,
@@ -28,11 +29,13 @@ import {
 // Types
 type JoinedMessage = Extract<ServerMessage, { type: 'joined' }>;
 
+
 export class SessionController {
   private myRole: Role | null = null;
   private latestState: PublicState | null = null;
   private clockOffset = 0; // serverTime - localTime, sampled on each state message
   private pendingAdminJoin = false;
+  private currentNonce: string | null = null;
 
   constructor(
     private readonly connection: ServerConnection,
@@ -59,7 +62,7 @@ export class SessionController {
     };
   }
 
-  // ---- Connection lifecycle ----
+  // Connection lifecycle
 
   private handleOpen(): void {
     adminHint.textContent = '';
@@ -67,9 +70,7 @@ export class SessionController {
   }
 
   private handleClose(): void {
-    if (!session.classList.contains('hidden')) {
-      directorStatus.textContent = 'Connection lost — reconnecting…';
-    }
+    if (!session.classList.contains('hidden')) { directorStatus.textContent = 'Connection lost — reconnecting…'; }
   }
 
   private handleServerMessage(msg: ServerMessage): void {
@@ -83,6 +84,12 @@ export class SessionController {
         this.applyStateToUI(msg.state);
         return;
       case 'pong':
+        return;
+      case 'challenge':
+        this.currentNonce = msg.nonce;
+        return;
+      case 'kicked':
+        this.leaveSession(msg.reason);
         return;
       default: {
         const exhaustive: never = msg;
@@ -98,7 +105,7 @@ export class SessionController {
         this.enterSession('admin');
       } else {
         adminHint.textContent = msg.error ?? 'Could not join as director.';
-        if (msg.role === 'viewer') this.enterSession('viewer');
+        if (msg.role === 'viewer') { this.enterSession('viewer'); }
       }
     } else if (msg.role === 'viewer') {
       this.enterSession('viewer');
@@ -114,33 +121,46 @@ export class SessionController {
     controls.classList.toggle('hidden', role !== 'admin');
   }
 
-  // ---- Landing screen ----
+  // Landing screen
 
-  private bindLandingControls(): void {
-    btnJoinAdmin.addEventListener('click', () => {
-      const username = usernameInput.value.trim();
-      if (!username) {
-        adminHint.textContent = 'Enter the director username first.';
-        return;
-      }
-      this.pendingAdminJoin = true;
-      adminHint.textContent = '';
-      this.connection.send({ type: 'join', role: 'admin', username });
-    });
-
-    usernameInput.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (e.key === 'Enter') btnJoinAdmin.click();
-    });
-
-    btnJoinViewer.addEventListener('click', () => {
-      this.connection.send({ type: 'join', role: 'viewer' });
-    });
+  private leaveSession(reason: string): void {
+    this.myRole = null;
+    session.classList.add('hidden');
+    landing.classList.remove('hidden');
+    adminHint.textContent = reason;
   }
 
-  // ---- Admin control dock ----
+  private bindLandingControls(): void {
+    btnJoinAdmin.addEventListener('click', () => { void this.attemptAdminJoin(); });
+    passphraseInput.addEventListener('keydown', (e: KeyboardEvent) => { if (e.key === 'Enter') { btnJoinAdmin.click(); }});
+    btnJoinViewer.addEventListener('click', () => { this.connection.send({ type: 'join', role: 'viewer' }); });
+  }
+
+  private async attemptAdminJoin(): Promise<void> {
+    const passphrase = passphraseInput.value;
+    if (!passphrase) {
+      adminHint.textContent = 'Enter the director passphrase first.';
+      return;
+    }
+    if (!isSecureCryptoAvailable()) {
+      adminHint.textContent = 'Your browser blocked secure login on this page (needs HTTPS).';
+      return;
+    }
+    if (!this.currentNonce) {
+      adminHint.textContent = 'Still connecting — try again in a moment.';
+      return;
+    }
+
+    const digest = await hmacSha256Hex(passphrase, this.currentNonce);
+    this.pendingAdminJoin = true;
+    adminHint.textContent = '';
+    this.connection.send({ type: 'join', role: 'admin', digest });
+  }
+
+  // Admin control dock
 
   private sendControl(action: ControlAction): void {
-    if (this.myRole !== 'admin') return;
+    if (this.myRole !== 'admin') { return; }
     this.connection.send({ type: 'control', ...action });
   }
 
@@ -157,22 +177,12 @@ export class SessionController {
       btn.addEventListener('click', () => this.sendControl({ action: 'setShape', value: shape }));
     });
 
-    sizeSlider.addEventListener('input', () =>
-      this.sendControl({ action: 'setSize', value: Number(sizeSlider.value) }),
-    );
-    speedSlider.addEventListener('input', () =>
-      this.sendControl({ action: 'setSpeed', value: Number(speedSlider.value) }),
-    );
-    rangeSlider.addEventListener('input', () =>
-      this.sendControl({ action: 'setRange', value: Number(rangeSlider.value) }),
-    );
-    bobbleColorInput.addEventListener('input', () =>
-      this.sendControl({ action: 'setBobbleColor', value: bobbleColorInput.value }),
-    );
-    backgroundColorInput.addEventListener('input', () =>
-      this.sendControl({ action: 'setBackgroundColor', value: backgroundColorInput.value }),
-    );
-
+    sizeSlider.addEventListener('input', () => this.sendControl({ action: 'setSize', value: Number(sizeSlider.value) }),);
+    speedSlider.addEventListener('input', () => this.sendControl({ action: 'setSpeed', value: Number(speedSlider.value) }),);
+    rangeSlider.addEventListener('input', () => this.sendControl({ action: 'setRange', value: Number(rangeSlider.value) }),);
+    bobbleColorInput.addEventListener('input', () => this.sendControl({ action: 'setBobbleColor', value: bobbleColorInput.value }),);
+    backgroundColorInput.addEventListener('input', () => this.sendControl({ action: 'setBackgroundColor', value: backgroundColorInput.value }),);
+    
     btnFullscreen.addEventListener('click', () => {
       if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch(() => {});
@@ -182,14 +192,14 @@ export class SessionController {
     });
   }
 
-  // ---- Reflect server state into the UI ----
+  // Reflect server state into the UI
 
   private applyStateToUI(s: PublicState): void {
     stage.style.background = s.backgroundColor;
 
     if (s.adminOnline) {
       const n = s.viewerCount;
-      directorStatus.textContent = `Director online · ${n} ${n === 1 ? 'viewer' : 'viewers'} watching`;
+      directorStatus.textContent = `Director online · ${n > 0 ? 'Viewer connected' : 'No viewer'}`;
     } else {
       directorStatus.textContent = 'No director connected — controls are idle';
     }

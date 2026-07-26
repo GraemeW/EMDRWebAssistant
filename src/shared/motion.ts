@@ -7,9 +7,7 @@ export const TIME_OFFSET_FACTOR = 50.0;
 export const RAMP_DURATION = 1.5;
 
 // Types
-export type MotionInput = Pick<SessionState, 'range' | 'size' | 'speed' | 'running'> & {
-  anchor: Anchor;
-};
+export type MotionInput = Pick<SessionState, 'range' | 'size' | 'speed' | 'running'> & { anchor: Anchor };
 
 // Interfaces
 export interface Bounds {
@@ -24,18 +22,14 @@ export interface MotionSample {
 }
 
 // Utilities
-export function clamp01(v: number): number {
-  return Math.min(1, Math.max(0, v));
-}
+export function clamp01(v: number): number { return Math.min(1, Math.max(0, v)); }
 
 export function speedToFractionPerSecond(relativeSpeed: number): number {
   const f = MIN_FRACTIONAL_SPEED + (MAX_FRACTIONAL_SPEED - MIN_FRACTIONAL_SPEED) * relativeSpeed;
   return f * TIME_OFFSET_FACTOR;
 }
 
-function spriteMargin(size: number): number {
-  return 0.03 + size * 0.05;
-}
+function spriteMargin(size: number): number { return 0.03 + size * 0.05; }
 
 export function getBounds(range: number, size: number): Bounds {
   const margin = spriteMargin(size) / 2;
@@ -79,7 +73,7 @@ export function computeAt(s: MotionInput, now: number): MotionSample {
   const anchorOffset = s.anchor.fraction - lower;
   const u0 = s.anchor.direction === 1 ? anchorOffset : period - anchorOffset;
   let u = (u0 + distance) % period;
-  if (u < 0) u += period;
+  if (u < 0) { u += period; }
 
   return u <= range
     ? { fraction: lower + u, direction: 1, speed: speedNow }

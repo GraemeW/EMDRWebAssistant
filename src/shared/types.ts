@@ -50,7 +50,7 @@ export type ControlAction =
 export type ControlMessage = { type: 'control' } & ControlAction;
 
 export type ClientMessage =
-  | { type: 'join'; role: 'admin'; username: string }
+  | { type: 'join'; role: 'admin'; digest: string }
   | { type: 'join'; role: 'viewer' }
   | ControlMessage
   | { type: 'ping'; t: number };
@@ -62,4 +62,6 @@ export type ClientMessage =
 export type ServerMessage =
   | { type: 'joined'; role: Role | null; error?: string }
   | { type: 'state'; state: PublicState }
-  | { type: 'pong'; t: number; serverTime: number };
+  | { type: 'pong'; t: number; serverTime: number }
+  | { type: 'challenge'; nonce: string }
+  | { type: 'kicked'; reason: string };

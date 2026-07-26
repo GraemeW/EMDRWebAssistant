@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bobble</title>
+<title>EMDR Web Assistant</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,13 +11,12 @@
 <!-- ===================== LANDING ===================== -->
 <section id="landing" class="screen">
   <div class="landing-card">
-    <h1 class="wordmark">bobble<span class="dot">.</span></h1>
-    <p class="tagline">One person guides it. Everyone else watches, in sync.</p>
+    <h1 class="wordmark">EMDR Web Assistant<span class="dot">.</span></h1>
 
     <div class="join-block">
-      <label for="director-username">Director username</label>
+      <label for="director-passphrase">Director Login</label>
       <div class="input-row">
-        <input id="director-username" type="text" autocomplete="off" placeholder="Enter director username" />
+        <input id="director-passphrase" type="password" autocomplete="off" placeholder="Enter the director login" />
         <button id="btn-join-admin" class="btn btn-primary">Start session</button>
       </div>
       <p class="input-hint" id="admin-hint"></p>
@@ -33,7 +32,7 @@
 <!-- ===================== SESSION ===================== -->
 <section id="session" class="screen hidden">
   <header class="topbar">
-    <span class="wordmark small">bobble<span class="dot">.</span></span>
+    <span class="wordmark small">EMDR Web Assistant<span class="dot">.</span></span>
     <span id="role-badge" class="badge">viewer</span>
     <span id="director-status" class="status-pill"></span>
   </header>
