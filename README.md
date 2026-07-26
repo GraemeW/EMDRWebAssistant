@@ -55,7 +55,7 @@ See [below](#deploying-behind-an-existing-nginx-or-apache) for a setup guide for
 src/
   server.ts             Slim composition root: wires config/session/connections/router together
   server/
-    config.ts             Env-derived config (PORT, ADMIN_USERNAME)
+    config.ts             Env-derived config (PORT, DIRECTOR_PASSPHRASE)
     auth.ts                HMAC-SHA256 challenge-response verification
     bobble-session.ts      Bobble's physics state + applyControl
     connections.ts          WebSocket client/role bookkeeping
