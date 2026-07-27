@@ -125,6 +125,7 @@ export class SessionController {
     roleBadge.textContent = role === 'admin' ? 'director' : 'viewer';
     roleBadge.classList.toggle('is-admin', role === 'admin');
     controls.classList.toggle('hidden', role !== 'admin');
+    this.renderer.refreshStageSize();
   }
 
   // Landing screen

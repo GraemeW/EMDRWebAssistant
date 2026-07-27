@@ -131,9 +131,23 @@ Note also that `tsconfig.server.json` sets `"module": "Node16"` / `"moduleResolu
 
 ## Rendering Notes
 
+### On Bobble Position Updates
+
 `renderer.ts` necessarily positions the bobble via CSS `transform`->`translate(...)` (and not, e.g., via `left`/`top`). 
 
 This is due to the fact that `left`/`top` require the browser to repaint pixels at the new position every frame, even on a promoted layer, while `transform` (like `opacity`) can be handled entirely by the compositor (moving an already-rasterized texture on the GPU). To this end, driving the animation instead with `left`/`top` can result in rendering artifacts due to sub-pixel repaint/dirty-rect rounding errors.
+
+### On Per-Frame Work
+
+`renderer.ts` deliberately avoids forced layout reads and unnecessary garbage-collector pressure to minimize the animation choppiness/jitter.
+
+Notably:
+- **The stage's size is measured once and cached**. 
+  - Reading live layout geometry can force the browser to recompute layout if anything's pending (allocating a new `DOMRect` every call)
+  - Thus, we only re-measure via a `ResizeObserver`, and once explicitly when the session view becomes visible
+- **Shape/size/color-related DOM writes are skipped on any frame where none of them changed** 
+  - Rewriting the same CSS values repeatedly still costs a style recalculation and allocates fresh template-literal strings each time
+  - This steady allocation stream was observed to cause periodic GC-pause-driven micro-stutters
 
 ## Director Login
 
