@@ -30,8 +30,7 @@ export class BobbleRenderer {
     const x = sample.fraction * rect.width;
     const y = 0.5 * rect.height;
 
-    bobbleEl.style.left = `${x}px`;
-    bobbleEl.style.top = `${y}px`;
+    bobbleEl.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
 
     bobbleEl.classList.remove('shape-circle', 'shape-square', 'shape-triangle');
     bobbleEl.classList.add(`shape-${state.shape}`);
@@ -43,10 +42,13 @@ export class BobbleRenderer {
       bobbleEl.style.borderRight = `${diameter / 2}px solid transparent`;
       bobbleEl.style.borderBottom = `${diameter * 0.87}px solid ${state.bobbleColor}`;
     } else {
+      bobbleEl.style.border = 'none';
       bobbleEl.style.width = `${diameter}px`;
       bobbleEl.style.height = `${diameter}px`;
       bobbleEl.style.background = state.bobbleColor;
-      bobbleEl.style.border = `2px solid ${state.backgroundColor}`;
+
+      // Old fix for rendering artifacts, no longer required w/ translate approach
+      //bobbleEl.style.border = `2px solid ${state.backgroundColor}`; 
     }
   }
 }

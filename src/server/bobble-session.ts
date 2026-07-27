@@ -76,6 +76,17 @@ export class BobbleSession {
         this.state.anchor.speed = wasRunning ? speedToFractionPerSecond(this.state.speed) : 0;
         return;
       }
+      case 'loadSettings': {
+        this.reanchor(now); // size/speed/range are all changing at once, freeze position
+        this.state.shape = msg.value.shape;
+        this.state.bobbleColor = msg.value.bobbleColor;
+        this.state.backgroundColor = msg.value.backgroundColor;
+        this.state.size = clamp01(msg.value.size);
+        this.state.speed = clamp01(msg.value.speed);
+        this.state.range = clamp01(msg.value.range);
+        this.state.anchor.speed = this.state.running ? speedToFractionPerSecond(this.state.speed) : 0;
+        return;
+      }
       default: {
         const exhaustive: never = msg;
         throw new Error(`Unhandled control action: ${JSON.stringify(exhaustive)}`);

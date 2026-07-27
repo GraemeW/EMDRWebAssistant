@@ -1,6 +1,6 @@
-*.map
 node_modules
 dist
+*.map
+*.tsbuildinfo
 public/client
 public/shared
-*.tsbuildinfo

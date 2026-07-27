@@ -223,6 +223,9 @@ input[type="color"]:focus-visible {
 .icon-btn:hover { color: var(--ink); border-color: var(--ink-dim); }
 .icon-btn:active { transform: translateY(1px); }
 
+.btn-row { display: flex; gap: 8px; }
+.btn-row .btn { flex: 1; }
+
 .stage-wrap {
   flex: 1;
   display: flex;
@@ -238,8 +241,9 @@ input[type="color"]:focus-visible {
 
 .bobble {
   position: absolute;
-  will-change: left, top;
-  transform: translate(-50%, -50%);
+  left: 0;
+  top: 0;
+  will-change: transform;
   background: #fff;
 }
 

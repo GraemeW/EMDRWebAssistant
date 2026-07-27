@@ -1,10 +1,22 @@
-import type { BobbleShape, ClientMessage, ServerMessage } from './types.js';
+import type { BobbleShape, BobbleSettings, ClientMessage, ServerMessage } from './types.js';
 
 // Tunables
 const BOBBLE_SHAPES: readonly BobbleShape[] = ['circle', 'square', 'triangle'];
 
 // Type Validation
 export function isBobbleShape(x: unknown): x is BobbleShape { return typeof x === 'string' && (BOBBLE_SHAPES as readonly string[]).includes(x); }
+
+export function isBobbleSettings(x: unknown): x is BobbleSettings {
+  if (!isRecord(x)) { return false; }
+  return (
+    isBobbleShape(x.shape) &&
+    typeof x.bobbleColor === 'string' &&
+    typeof x.backgroundColor === 'string' &&
+    isFiniteNumber(x.size) &&
+    isFiniteNumber(x.speed) &&
+    isFiniteNumber(x.range)
+  );
+}
 
 export function isClientMessage(x: unknown): x is ClientMessage {
   if (!isRecord(x)) { return false; }
@@ -28,6 +40,8 @@ export function isClientMessage(x: unknown): x is ClientMessage {
           return isFiniteNumber(x.value);
         case 'setRunning':
           return typeof x.value === 'boolean';
+        case 'loadSettings':
+          return isBobbleSettings(x.value);
         case 'toggleRunning':
         case 'reset':
           return true;

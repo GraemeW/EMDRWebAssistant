@@ -32,6 +32,16 @@ export interface PublicState extends SessionState {
 
 export type Role = 'admin' | 'viewer';
 
+// Save State Tunables
+export interface BobbleSettings {
+  shape: BobbleShape;
+  bobbleColor: string;
+  backgroundColor: string;
+  size: number;
+  speed: number;
+  range: number;
+}
+
 // ---------------------------------------------------------------------------
 // Client -> Server
 // ---------------------------------------------------------------------------
@@ -45,7 +55,8 @@ export type ControlAction =
   | { action: 'setRange'; value: number }
   | { action: 'toggleRunning' }
   | { action: 'setRunning'; value: boolean }
-  | { action: 'reset' };
+  | { action: 'reset' }
+  | { action: 'loadSettings'; value: BobbleSettings };
 
 export type ControlMessage = { type: 'control' } & ControlAction;
 

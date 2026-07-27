@@ -1,6 +1,8 @@
 import type { ControlAction, PublicState, Role, ServerMessage } from '../shared/types.js';
 import { isBobbleShape } from '../shared/validate.js';
 import { hmacSha256Hex, isSecureCryptoAvailable } from './crypto.js';
+import { saveTextFile, openTextFile } from './file-io.js';
+import { serializeSettings, parseSettingsFile, SETTINGS_FILE_SUGGESTED_NAME } from './settings-file.js';
 import type { ServerConnection } from './connection.js';
 import type { BobbleRenderer, RenderInput } from './renderer.js';
 import {
@@ -23,6 +25,8 @@ import {
   rangeSlider,
   bobbleColorInput,
   backgroundColorInput,
+  btnSaveSettings,
+  btnLoadSettings,
   btnFullscreen,
 } from './dom.js';
 
@@ -49,6 +53,7 @@ export class SessionController {
 
     this.bindLandingControls();
     this.bindAdminControls();
+    this.bindSettingsFileControls();
     this.bindFullscreenControl();
 
     this.connection.connect();
@@ -157,7 +162,7 @@ export class SessionController {
     adminHint.textContent = '';
     this.connection.send({ type: 'join', role: 'admin', digest });
   }
-  
+
   // Header
   private bindFullscreenControl(): void {
     btnFullscreen.addEventListener('click', () => {
@@ -203,6 +208,32 @@ export class SessionController {
     rangeSlider.addEventListener('input', () => this.sendControl({ action: 'setRange', value: Number(rangeSlider.value) }),);
     bobbleColorInput.addEventListener('input', () => this.sendControl({ action: 'setBobbleColor', value: bobbleColorInput.value }),);
     backgroundColorInput.addEventListener('input', () => this.sendControl({ action: 'setBackgroundColor', value: backgroundColorInput.value }),);
+  }
+
+  private bindSettingsFileControls(): void { 
+    btnSaveSettings.addEventListener('click', () => { void this.saveSettingsFile(); });
+    btnLoadSettings.addEventListener('click', () => { openTextFile('application/json,.json', (text) => this.handleLoadedSettingsFile(text)); });
+  }
+
+  private async saveSettingsFile(): Promise<void> {
+    if (!this.latestState) { return; }
+    const { shape, bobbleColor, backgroundColor, size, speed, range } = this.latestState;
+    const json = serializeSettings({ shape, bobbleColor, backgroundColor, size, speed, range });
+    try {
+      await saveTextFile(SETTINGS_FILE_SUGGESTED_NAME, json, 'application/json');
+    } catch (err) {
+      console.error('Failed to save settings file', err);
+      alert('Could not save the settings file.');
+    }
+  }
+
+  private handleLoadedSettingsFile(text: string): void {
+    const settings = parseSettingsFile(text);
+    if (!settings) {
+      alert("Invalid settings file.");
+      return;
+    }
+    this.sendControl({ action: 'loadSettings', value: settings });
   }
 
   // Reflect server state into the UI

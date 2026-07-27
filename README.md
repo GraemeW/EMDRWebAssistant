@@ -71,7 +71,10 @@ src/
     connection.ts           WebSocket lifecycle (connect/reconnect/send)
     dom.ts                   Typed element lookups
     renderer.ts               Per-frame paint loop
-    session-controller.ts      Orchestrator: wires dom + connection + renderer together
+    crypto.ts                  HMAC login digest via the Web Crypto API
+    settings-file.ts            Settings file format: serialize/parse/validate (pure data, no browser APIs)
+    file-io.ts                   Native save/open file-picker mechanics
+    session-controller.ts          Orchestrator: wires dom + connection + renderer together
 public/
   index.html            Landing screen + session screen markup
   style.css             Styling
@@ -126,6 +129,12 @@ Note also that `tsconfig.server.json` sets `"module": "Node16"` / `"moduleResolu
 - The other connection is a **viewer**: read-only, gets the live state and renders the same motion locally using the same shared `computeAt` formula, so all screens track closely without the server streaming a position every frame.
 - State changes (color, shape, size, speed, range, play/pause, reset) are broadcast to everyone instantly over WebSocket.
 
+## Rendering Notes
+
+`renderer.ts` necessarily positions the bobble via CSS `transform`->`translate(...)` (and not, e.g., via `left`/`top`). 
+
+This is due to the fact that `left`/`top` require the browser to repaint pixels at the new position every frame, even on a promoted layer, while `transform` (like `opacity`) can be handled entirely by the compositor (moving an already-rasterized texture on the GPU). To this end, driving the animation instead with `left`/`top` can result in rendering artifacts due to sub-pixel repaint/dirty-rect rounding errors.
+
 ## Director Login
 
 There's one shared passphrase (`DIRECTOR_PASSPHRASE`), not per-person accounts — this is intentionally lightweight and not a full auth system. 
@@ -147,6 +156,24 @@ This lets a director whose connection went stale (closed laptop, network hiccup,
   - reconnecting gets a fresh budget, so it slows down casual/scripted guessing, but isn't a real defense against a determined attacker
 - There's no nonce expiry — a nonce is valid until it's used (successfully or not) or a new connection replaces it
 - None of this protects the passphrase from being learned some other way (someone tells a friend, it's visible over someone's shoulder, etc.) — same as any shared-secret scheme
+
+## Settings File (Save/Load)
+
+The admin console has Save/Load buttons to locally save the bobble's tunable settings:  shape, bobble color, background color, size, speed, and travel range.
+
+Save format is plain JSON:
+
+```json
+{
+  "formatVersion": 1,
+  "shape": "circle",
+  "bobbleColor": "#ffffff",
+  "backgroundColor": "#000000",
+  "size": 0.3,
+  "speed": 0.35,
+  "range": 1
+}
+```
 
 ## Deploying Behind an Existing Nginx or Apache 
 
