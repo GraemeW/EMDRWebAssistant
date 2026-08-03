@@ -55,16 +55,20 @@ See [below](#deploying-behind-an-existing-nginx-or-apache) for a setup guide for
 
 ```
 src/
-  server.ts             Slim composition root: wires config/session/connections/router together
+  server.ts             Slim composition root: wires config/rooms/connections/router together
   server/
-    config.ts             Env-derived config (PORT, DIRECTOR_PASSPHRASE)
+    config.ts             Env-derived config (PORT, DIRECTOR_PASSPHRASE, MAX_ROOMS, EMPTY_ROOM_TEARDOWN_MINUTES)
     auth.ts                HMAC-SHA256 challenge-response verification
-    bobble-session.ts      Bobble's physics state + applyControl
-    connections.ts          WebSocket client/role bookkeeping
-    message-router.ts       Parse incoming frames and ties session + connections together
+    bobble-session.ts      Bobble's physics state + applyControl (one instance per room)
+    connections.ts         WebSocketServer + room-agnostic per-connection bookkeeping (nonce, failed attempts, which room)
+    room-connections.ts     Per-room director seat + viewer roster + room-scoped broadcast
+    room.ts                 Room's BobbleSession + RoomConnections + teardown timer
+    room-manager.ts         Room lookup/create, empty-room teardown, max-rooms eviction
+    message-router.ts       Parse incoming frames and route them to the right room's session + connections
   shared/
     types.ts             WebSocket message protocol & session-state types
     validate.ts           Runtime type guards for messages coming off the wire
+    rooms.ts               Room-name validation/normalization, shared by client and server
     motion.ts               Bounce/ramp position math
   client/
     client.ts             Slim composition root: wires connection/renderer/controller together
@@ -128,6 +132,34 @@ Note also that `tsconfig.server.json` sets `"module": "Node16"` / `"moduleResolu
 - Only one WebSocket connection can hold the **director** role at a time. If the director disconnects, the bobble keeps doing whatever it was doing, and the seat is free to reclaim.
 - The other connection is a **viewer**: read-only, gets the live state and renders the same motion locally using the same shared `computeAt` formula, so all screens track closely without the server streaming a position every frame.
 - State changes (color, shape, size, speed, range, play/pause, reset) are broadcast to everyone instantly over WebSocket.
+
+## Rooms (Multiple Simultaneous Sessions)
+
+The server can host many independent sessions at once, each identified by a **Room** name. Note that there is still only one shared director passphrase (see below). Room names are trimmed and lower-cased to make them case-insensitive, such that, e.g., `"Room1"`, `"room1"`, and `" room1 "` are all the same room.
+
+- **Director**: entering a Room name and the correct passphrase either joins that room's existing session (kicking out its current director), or starts a new room if no session exists under that name
+- **Viewer**: entering a Room name joins that room's session if one already exists
+
+**Each room has its own bobble state, its own director seat, and its own viewer roster — controls in one room never affect another.**
+
+### Empty-Room Teardown
+
+If every connection in a room (i.e. both director/viewer) disconnects, that room's state is kept alive for a grace period, then discarded:
+
+```bash
+EMPTY_ROOM_TEARDOWN_MINUTES=5   # default; a fresh join before this elapses cancels the teardown
+```
+
+### Room Cap
+
+To bound memory/connection usage, only so many rooms can exist at once:
+
+```bash
+MAX_ROOMS=100   # default
+```
+
+If a new room would be created past this cap, the oldest existing room is torn down first — anyone still connected to it receives a `{ type: 'kicked' }` message.
+
 
 ## Rendering Notes
 
@@ -206,6 +238,8 @@ Pick a port only this app will use (examples below use `3000`) and a real passph
 PORT=3000
 HOST=127.0.0.1
 DIRECTOR_PASSPHRASE="something only you know"
+MAX_ROOMS=100
+EMPTY_ROOM_TEARDOWN_MINUTES=5
 ```
 
 **1. Keep it running: pick one.**

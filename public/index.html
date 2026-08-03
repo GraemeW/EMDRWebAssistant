@@ -13,6 +13,18 @@
   <div class="landing-card">
     <h1 class="wordmark">EMDR Web Assistant<span class="dot">.</span></h1>
 
+    <div class="join-block room-block">
+      <div class="input-row">
+        <label for="room-name" class="input-label">Room</label>
+        <input id="room-name" type="text" autocomplete="off" placeholder="Enter a room name" />
+      </div>
+    </div>
+
+    <button id="btn-join-viewer" class="btn btn-secondary btn-wide">Join session</button>
+    <p id="viewer-hint" class="input-hint"></p>
+
+    <div class="divider"><span>or</span></div>
+
     <div class="join-block">
       <label for="director-passphrase">Director Login</label>
       <div class="input-row">
@@ -21,11 +33,6 @@
       </div>
       <p class="input-hint" id="admin-hint"></p>
     </div>
-
-    <div class="divider"><span>or</span></div>
-
-    <button id="btn-join-viewer" class="btn btn-secondary btn-wide">Join session</button>
-    <p id="viewer-hint" class="input-hint"></p>
   </div>
 </section>
 
@@ -34,6 +41,7 @@
   <header class="topbar">
     <span class="wordmark small">EMDR Web Assistant<span class="dot">.</span></span>
     <span id="role-badge" class="badge">viewer</span>
+    <span id="room-badge" class="badge">Room</span>
     <span id="director-status" class="status-pill"></span>
     <button id="btn-fullscreen" class="icon-btn" type="button" aria-label="Enter fullscreen" title="Enter fullscreen">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"

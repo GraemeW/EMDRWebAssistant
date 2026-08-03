@@ -1,9 +1,11 @@
 import type { RawData } from 'ws';
 import type { ClientMessage, PublicState } from '../shared/types.js';
 import { isClientMessage } from '../shared/validate.js';
-import type { BobbleSession } from './bobble-session.js';
-import type { ClientSocket, ConnectionRegistry } from './connections.js';
+import { normalizeRoomName } from '../shared/rooms.js';
+import type { ClientSocket, ConnectionAcceptor } from './connections.js';
 import type { DirectorAuth } from './auth.js';
+import type { Room } from './room.js';
+import type { RoomManager } from './room-manager.js';
 
 // Tunables
 const MAX_FAILED_ADMIN_ATTEMPTS = 5;
@@ -13,8 +15,8 @@ type JoinMessage = Extract<ClientMessage, { type: 'join' }>;
 
 export class MessageRouter {
   constructor(
-    private readonly session: BobbleSession,
-    private readonly connections: ConnectionRegistry,
+    private readonly rooms: RoomManager,
+    private readonly acceptor: ConnectionAcceptor,
     private readonly auth: DirectorAuth,
   ) {}
 
@@ -30,21 +32,25 @@ export class MessageRouter {
   }
 
   handleClose(ws: ClientSocket): void {
-    this.connections.releaseAdminIfSelf(ws);
-    this.broadcastState();
+    const roomName = this.acceptor.getRoomName(ws);
+    if (roomName === null) { return; }
+
+    const room = this.rooms.get(roomName);
+    if (!room) { return; }
+
+    room.connections.leave(ws);
+    this.broadcastRoomState(room);
+    this.rooms.noteConnectionLeft(roomName);
   }
 
-  handleNewConnection(ws: ClientSocket): void {
-    this.issueChallenge(ws);
-    this.connections.send(ws, { type: 'state', state: this.buildPublicState() });
-  }
+  handleNewConnection(ws: ClientSocket): void { this.issueChallenge(ws); }
 
-  
+
   // Private Methods
   private issueChallenge(ws: ClientSocket): void {
     const nonce = this.auth.generateNonce();
-    this.connections.setNonce(ws, nonce);
-    this.connections.send(ws, { type: 'challenge', nonce });
+    this.acceptor.setNonce(ws, nonce);
+    this.acceptor.send(ws, { type: 'challenge', nonce });
   }
 
   private dispatch(ws: ClientSocket, msg: ClientMessage): void {
@@ -53,12 +59,10 @@ export class MessageRouter {
         this.handleJoin(ws, msg);
         return;
       case 'control':
-        if (ws.role !== 'admin' || !this.connections.isCurrentAdmin(ws)) { return; } // ignore non-admin control attempts
-        this.session.applyControl(msg);
-        this.broadcastState();
+        this.handleControl(ws, msg);
         return;
       case 'ping':
-        this.connections.send(ws, { type: 'pong', t: msg.t, serverTime: Date.now() });
+        this.acceptor.send(ws, { type: 'pong', t: msg.t, serverTime: Date.now() });
         return;
       default: {
         const exhaustive: never = msg;
@@ -67,24 +71,48 @@ export class MessageRouter {
     }
   }
 
+  private handleControl(ws: ClientSocket, msg: Extract<ClientMessage, { type: 'control' }>): void {
+    const room = this.roomOf(ws);
+    if (!room || ws.role !== 'admin' || !room.connections.isCurrentAdmin(ws)) { return; } // ignore non-admin control attempts
+    room.session.applyControl(msg);
+    this.broadcastRoomState(room);
+  }
+
   private handleJoin(ws: ClientSocket, msg: JoinMessage): void {
+    const roomName = normalizeRoomName(msg.room);
+
     if (msg.role === 'admin') {
-      this.handleAdminJoin(ws, msg.digest);
+      this.handleAdminJoin(ws, msg.digest, roomName);
       return;
     }
 
-    this.connections.markViewer(ws);
-    this.connections.send(ws, { type: 'joined', role: 'viewer' });
-    this.broadcastState();
+    this.handleViewerJoin(ws, roomName);
   }
 
-  private handleAdminJoin(ws: ClientSocket, digest: string): void {
-    const nonce = this.connections.getNonce(ws);
+  private handleViewerJoin(ws: ClientSocket, roomName: string): void {
+    const room = this.rooms.get(roomName);
+    if (!room) {
+      this.acceptor.send(ws, {
+        type: 'joined',
+        role: null,
+        error: 'No session found for that room yet — ask your director to start one.',
+      });
+      return;
+    }
+
+    this.moveToRoom(ws, room, roomName);
+    room.connections.markViewer(ws);
+    this.acceptor.send(ws, { type: 'joined', role: 'viewer', room: roomName });
+    this.broadcastRoomState(room);
+  }
+
+  private handleAdminJoin(ws: ClientSocket, digest: string, roomName: string): void {
+    const nonce = this.acceptor.getNonce(ws);
 
     if (!this.auth.verify(nonce, digest)) {
-      const attempts = this.connections.incrementFailedAttempts(ws);
+      const attempts = this.acceptor.incrementFailedAttempts(ws);
       if (attempts >= MAX_FAILED_ADMIN_ATTEMPTS) {
-        this.connections.send(ws, {
+        this.acceptor.send(ws, {
           type: 'joined',
           role: null,
           error: 'Too many incorrect attempts — reconnect to try again.',
@@ -92,35 +120,59 @@ export class MessageRouter {
         ws.close();
         return;
       }
-      
+
       this.issueChallenge(ws);
-      this.connections.send(ws, { type: 'joined', role: null, error: 'Incorrect director passphrase.' });
+      this.acceptor.send(ws, { type: 'joined', role: null, error: 'Incorrect director passphrase.' });
       return;
     }
 
-    this.connections.resetFailedAttempts(ws);
+    this.acceptor.resetFailedAttempts(ws);
 
-    // Correct login always wins the director seat
-    const currentAdmin = this.connections.getAdminSocket();
+    // Correct login always wins the director seat for this room, joining or creating it as needed.
+    const room = this.rooms.getOrCreate(roomName);
+    this.moveToRoom(ws, room, roomName);
+
+    const currentAdmin = room.connections.getAdminSocket();
     if (currentAdmin !== null && currentAdmin !== ws) {
-      this.connections.send(currentAdmin, { type: 'kicked', reason: 'Another director signed in.' });
+      this.acceptor.send(currentAdmin, { type: 'kicked', reason: 'Another director signed in.' });
       currentAdmin.close();
     }
 
-    this.connections.claimAdmin(ws);
-    this.connections.send(ws, { type: 'joined', role: 'admin' });
-    this.broadcastState();
+    room.connections.claimAdmin(ws);
+    this.acceptor.send(ws, { type: 'joined', role: 'admin', room: roomName });
+    this.broadcastRoomState(room);
   }
 
-  private broadcastState(): void {
-    this.connections.broadcast({ type: 'state', state: this.buildPublicState() });
+  private moveToRoom(ws: ClientSocket, room: Room, roomName: string): void {
+    const previousRoomName = this.acceptor.getRoomName(ws);
+    if (previousRoomName !== null && previousRoomName !== roomName) {
+      const previousRoom = this.rooms.get(previousRoomName);
+      if (previousRoom) {
+        previousRoom.connections.leave(ws);
+        this.broadcastRoomState(previousRoom);
+        this.rooms.noteConnectionLeft(previousRoomName);
+      }
+    }
+
+    this.acceptor.setRoomName(ws, roomName);
+    room.connections.join(ws);
+    room.cancelTeardown(); // this room is in active use again
   }
 
-  private buildPublicState(): PublicState {
+  private roomOf(ws: ClientSocket): Room | undefined {
+    const roomName = this.acceptor.getRoomName(ws);
+    return roomName === null ? undefined : this.rooms.get(roomName);
+  }
+
+  private broadcastRoomState(room: Room): void {
+    room.connections.broadcast({ type: 'state', state: this.buildPublicState(room) });
+  }
+
+  private buildPublicState(room: Room): PublicState {
     return {
-      ...this.session.getState(),
-      adminOnline: this.connections.hasLiveAdmin(),
-      viewerCount: this.connections.countViewers(),
+      ...room.session.getState(),
+      adminOnline: room.connections.hasLiveAdmin(),
+      viewerCount: room.connections.countViewers(),
       serverTime: Date.now(),
     };
   }

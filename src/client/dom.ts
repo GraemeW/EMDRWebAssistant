@@ -7,6 +7,7 @@ export function requireElement<T extends HTMLElement>(id: string): T {
 
 // Landing screen
 export const landing = requireElement<HTMLElement>('landing');
+export const roomInput = requireElement<HTMLInputElement>('room-name');
 export const passphraseInput = requireElement<HTMLInputElement>('director-passphrase');
 export const btnJoinAdmin = requireElement<HTMLButtonElement>('btn-join-admin');
 export const btnJoinViewer = requireElement<HTMLButtonElement>('btn-join-viewer');
@@ -16,6 +17,7 @@ export const viewerHint = requireElement<HTMLParagraphElement>('viewer-hint');
 // Session screen
 export const session = requireElement<HTMLElement>('session');
 export const roleBadge = requireElement<HTMLElement>('role-badge');
+export const roomBadge = requireElement<HTMLElement>('room-badge');
 export const directorStatus = requireElement<HTMLElement>('director-status');
 export const btnFullscreen = requireElement<HTMLButtonElement>('btn-fullscreen');
 export const stage = requireElement<HTMLDivElement>('stage');

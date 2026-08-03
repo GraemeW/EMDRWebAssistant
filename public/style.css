@@ -48,7 +48,7 @@ html, body {
   font-weight: 400;
   font-size: 2.6rem;
   letter-spacing: 0.01em;
-  margin: 0 0 8px;
+  margin: 0 0 40px;
   color: var(--ink);
 }
 
@@ -76,6 +76,8 @@ html, body {
 
 .join-block { text-align: center; }
 
+.room-block { margin: 0 0 28px; }
+
 .join-block label,
 .control-label {
   display: block;
@@ -86,14 +88,22 @@ html, body {
   margin-bottom: 6px;
 }
 
+.input-row .input-label {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+
 .input-row {
   display: flex;
   justify-content: center;
   gap: 8px;
+  height: 40px
 }
 
 input[type="text"] {
-  flex: 1;
   background: var(--panel);
   border: 1px solid var(--panel-line);
   color: var(--ink);

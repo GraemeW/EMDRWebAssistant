@@ -61,8 +61,8 @@ export type ControlAction =
 export type ControlMessage = { type: 'control' } & ControlAction;
 
 export type ClientMessage =
-  | { type: 'join'; role: 'admin'; digest: string }
-  | { type: 'join'; role: 'viewer' }
+  | { type: 'join'; role: 'admin'; digest: string; room: string }
+  | { type: 'join'; role: 'viewer'; room: string }
   | ControlMessage
   | { type: 'ping'; t: number };
 
@@ -71,7 +71,7 @@ export type ClientMessage =
 // ---------------------------------------------------------------------------
 
 export type ServerMessage =
-  | { type: 'joined'; role: Role | null; error?: string }
+  | { type: 'joined'; role: Role | null; error?: string; room?: string }
   | { type: 'state'; state: PublicState }
   | { type: 'pong'; t: number; serverTime: number }
   | { type: 'challenge'; nonce: string }

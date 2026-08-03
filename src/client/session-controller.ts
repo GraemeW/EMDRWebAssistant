@@ -1,5 +1,6 @@
 import type { ControlAction, PublicState, Role, ServerMessage } from '../shared/types.js';
 import { isBobbleShape } from '../shared/validate.js';
+import { isValidRoomName, normalizeRoomName } from '../shared/rooms.js';
 import { hmacSha256Hex, isSecureCryptoAvailable } from './crypto.js';
 import { saveTextFile, openTextFile } from './file-io.js';
 import { serializeSettings, parseSettingsFile, SETTINGS_FILE_SUGGESTED_NAME } from './settings-file.js';
@@ -7,6 +8,7 @@ import type { ServerConnection } from './connection.js';
 import type { BobbleRenderer, RenderInput } from './renderer.js';
 import {
   landing,
+  roomInput,
   passphraseInput,
   btnJoinAdmin,
   btnJoinViewer,
@@ -14,6 +16,7 @@ import {
   viewerHint,
   session,
   roleBadge,
+  roomBadge,
   directorStatus,
   stage,
   controls,
@@ -108,28 +111,30 @@ export class SessionController {
     if (this.pendingAdminJoin) {
       this.pendingAdminJoin = false;
       if (msg.role === 'admin') {
-        this.enterSession('admin');
+        this.enterSession('admin', msg.room ?? '');
       } else {
         adminHint.textContent = msg.error ?? 'Could not join as director.';
-        if (msg.role === 'viewer') { this.enterSession('viewer'); }
+        if (msg.role === 'viewer') { this.enterSession('viewer', msg.room ?? ''); }
       }
     } else if (msg.role === 'viewer') {
-      this.enterSession('viewer');
+      this.enterSession('viewer', msg.room ?? '');
+    } else if (msg.error) {
+      viewerHint.textContent = msg.error;
     }
   }
 
-  private enterSession(role: Role): void {
+  private enterSession(role: Role, room: string): void {
     this.myRole = role;
     landing.classList.add('hidden');
     session.classList.remove('hidden');
     roleBadge.textContent = role === 'admin' ? 'director' : 'viewer';
     roleBadge.classList.toggle('is-admin', role === 'admin');
+    roomBadge.textContent = room ? `Room: ${room}` : 'Room';
     controls.classList.toggle('hidden', role !== 'admin');
     this.renderer.refreshStageSize();
   }
 
   // Landing screen
-
   private leaveSession(reason: string): void {
     this.myRole = null;
     session.classList.add('hidden');
@@ -140,10 +145,30 @@ export class SessionController {
   private bindLandingControls(): void {
     btnJoinAdmin.addEventListener('click', () => { void this.attemptAdminJoin(); });
     passphraseInput.addEventListener('keydown', (e: KeyboardEvent) => { if (e.key === 'Enter') { btnJoinAdmin.click(); }});
-    btnJoinViewer.addEventListener('click', () => { this.connection.send({ type: 'join', role: 'viewer' }); });
+    btnJoinViewer.addEventListener('click', () => { this.attemptViewerJoin(); });
+  }
+
+  private readRoomNameOrShowError(hint: HTMLElement): string | null {
+    const raw = roomInput.value;
+    if (!isValidRoomName(raw)) {
+      hint.textContent = 'Enter a room name first.';
+      return null;
+    }
+    return normalizeRoomName(raw);
+  }
+
+  private attemptViewerJoin(): void {
+    const room = this.readRoomNameOrShowError(viewerHint);
+    if (room === null) { return; }
+
+    viewerHint.textContent = '';
+    this.connection.send({ type: 'join', role: 'viewer', room });
   }
 
   private async attemptAdminJoin(): Promise<void> {
+    const room = this.readRoomNameOrShowError(adminHint);
+    if (room === null) { return; }
+
     const passphrase = passphraseInput.value;
     if (!passphrase) {
       adminHint.textContent = 'Enter the director passphrase first.';
@@ -161,7 +186,7 @@ export class SessionController {
     const digest = await hmacSha256Hex(passphrase, this.currentNonce);
     this.pendingAdminJoin = true;
     adminHint.textContent = '';
-    this.connection.send({ type: 'join', role: 'admin', digest });
+    this.connection.send({ type: 'join', role: 'admin', digest, room });
   }
 
   // Header

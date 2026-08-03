@@ -1,4 +1,5 @@
 import type { BobbleShape, BobbleSettings, ClientMessage, ServerMessage } from './types.js';
+import { isValidRoomName } from './rooms.js';
 
 // Tunables
 const BOBBLE_SHAPES: readonly BobbleShape[] = ['circle', 'square', 'triangle'];
@@ -23,6 +24,7 @@ export function isClientMessage(x: unknown): x is ClientMessage {
 
   switch (x.type) {
     case 'join':
+      if (!isValidRoomName(x.room)) { return false; }
       if (x.role === 'admin') { return typeof x.digest === 'string'; }
       if (x.role === 'viewer') { return true; }
       return false;
