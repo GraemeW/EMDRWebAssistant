@@ -100,7 +100,7 @@ html, body {
   display: flex;
   justify-content: center;
   gap: 8px;
-  height: 40px
+  height: 40px;
 }
 
 input[type="text"] {
