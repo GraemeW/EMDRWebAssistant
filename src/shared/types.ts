@@ -21,6 +21,7 @@ export interface SessionState {
   speed: number;
   range: number;
   running: boolean;
+  beepOnBounce: boolean;
   anchor: Anchor;
 }
 
@@ -40,6 +41,7 @@ export interface BobbleSettings {
   size: number;
   speed: number;
   range: number;
+  beepOnBounce: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,6 +57,7 @@ export type ControlAction =
   | { action: 'setRange'; value: number }
   | { action: 'toggleRunning' }
   | { action: 'setRunning'; value: boolean }
+  | { action: 'setBeepOnBounce'; value: boolean }
   | { action: 'reset' }
   | { action: 'loadSettings'; value: BobbleSettings };
 

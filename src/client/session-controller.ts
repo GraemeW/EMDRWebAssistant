@@ -2,6 +2,7 @@ import type { ControlAction, PublicState, Role, ServerMessage } from '../shared/
 import { isBobbleShape } from '../shared/validate.js';
 import { isValidRoomName, normalizeRoomName } from '../shared/rooms.js';
 import { hmacSha256Hex, isSecureCryptoAvailable } from './crypto.js';
+import { BeepPlayer } from './beep.js';
 import { saveTextFile, openTextFile } from './file-io.js';
 import { serializeSettings, parseSettingsFile, SETTINGS_FILE_SUGGESTED_NAME } from './settings-file.js';
 import type { ServerConnection } from './connection.js';
@@ -28,6 +29,7 @@ import {
   rangeSlider,
   bobbleColorInput,
   backgroundColorInput,
+  beepToggle,
   btnSaveSettings,
   btnLoadSettings,
   btnFullscreen,
@@ -43,6 +45,7 @@ export class SessionController {
   private clockOffset = 0; // serverTime - localTime, sampled on each state message
   private pendingAdminJoin = false;
   private currentNonce: string | null = null;
+  private readonly beepPlayer = new BeepPlayer();
 
   constructor(
     private readonly connection: ServerConnection,
@@ -60,7 +63,7 @@ export class SessionController {
     this.bindFullscreenControl();
 
     this.connection.connect();
-    this.renderer.start(() => this.renderInput());
+    this.renderer.start(() => this.renderInput(), () => this.handleBounce());
   }
 
   private renderInput(): RenderInput {
@@ -69,6 +72,10 @@ export class SessionController {
       now: Date.now() + this.clockOffset,
       visible: !session.classList.contains('hidden'),
     };
+  }
+
+  private handleBounce(): void {
+    if (this.latestState?.beepOnBounce) { this.beepPlayer.play(); }
   }
 
   // Connection lifecycle
@@ -159,15 +166,16 @@ export class SessionController {
 
   private attemptViewerJoin(): void {
     const room = this.readRoomNameOrShowError(viewerHint);
-    if (room === null) { return; }
-
+    if (room === null) return;
+    this.beepPlayer.unlock(); // must happen synchronously within this click gesture
     viewerHint.textContent = '';
     this.connection.send({ type: 'join', role: 'viewer', room });
   }
 
   private async attemptAdminJoin(): Promise<void> {
     const room = this.readRoomNameOrShowError(adminHint);
-    if (room === null) { return; }
+    if (room === null) return;
+    this.beepPlayer.unlock(); // must happen synchronously within this click gesture, before the awaits below
 
     const passphrase = passphraseInput.value;
     if (!passphrase) {
@@ -234,6 +242,7 @@ export class SessionController {
     rangeSlider.addEventListener('input', () => this.sendControl({ action: 'setRange', value: Number(rangeSlider.value) }),);
     bobbleColorInput.addEventListener('input', () => this.sendControl({ action: 'setBobbleColor', value: bobbleColorInput.value }),);
     backgroundColorInput.addEventListener('input', () => this.sendControl({ action: 'setBackgroundColor', value: backgroundColorInput.value }),);
+    beepToggle.addEventListener('change', () => this.sendControl({ action: 'setBeepOnBounce', value: beepToggle.checked }));
   }
 
   private bindSettingsFileControls(): void { 
@@ -243,8 +252,8 @@ export class SessionController {
 
   private async saveSettingsFile(): Promise<void> {
     if (!this.latestState) { return; }
-    const { shape, bobbleColor, backgroundColor, size, speed, range } = this.latestState;
-    const json = serializeSettings({ shape, bobbleColor, backgroundColor, size, speed, range });
+    const { shape, bobbleColor, backgroundColor, size, speed, range, beepOnBounce } = this.latestState;
+    const json = serializeSettings({ shape, bobbleColor, backgroundColor, size, speed, range, beepOnBounce });
     try {
       await saveTextFile(SETTINGS_FILE_SUGGESTED_NAME, json, 'application/json');
     } catch (err) {
@@ -282,6 +291,7 @@ export class SessionController {
       if (document.activeElement !== rangeSlider) rangeSlider.value = String(s.range);
       if (document.activeElement !== bobbleColorInput) bobbleColorInput.value = s.bobbleColor;
       if (document.activeElement !== backgroundColorInput) backgroundColorInput.value = s.backgroundColor;
+      if (document.activeElement !== beepToggle) beepToggle.checked = s.beepOnBounce;
     }
   }
 }

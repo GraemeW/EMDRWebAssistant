@@ -8,6 +8,7 @@ const DEFAULT_SIZE = 0.3;
 const DEFAULT_BACKGROUND_COLOR = '#000000';
 const DEFAULT_SPEED = 0.35;
 const DEFAULT_RANGE = 1.0;
+const DEFAULT_BEEP_ON_BOUNCE = false;
 const INITIAL_X_FRACTION = 0.65;
 
 // Initial State
@@ -20,6 +21,7 @@ function freshState(): SessionState {
     speed: DEFAULT_SPEED,
     range: DEFAULT_RANGE,
     running: true,
+    beepOnBounce: DEFAULT_BEEP_ON_BOUNCE,
     anchor: {
       fraction: INITIAL_X_FRACTION,
       direction: 1,
@@ -69,6 +71,9 @@ export class BobbleSession {
         this.reanchor(now);
         this.state.running = msg.value;
         return;
+      case 'setBeepOnBounce':
+        this.state.beepOnBounce = msg.value;
+        return;
       case 'reset': {
         const wasRunning = this.state.running;
         this.state = freshState();
@@ -84,6 +89,7 @@ export class BobbleSession {
         this.state.size = clamp01(msg.value.size);
         this.state.speed = clamp01(msg.value.speed);
         this.state.range = clamp01(msg.value.range);
+        this.state.beepOnBounce = msg.value.beepOnBounce;
         this.state.anchor.speed = this.state.running ? speedToFractionPerSecond(this.state.speed) : 0;
         return;
       }

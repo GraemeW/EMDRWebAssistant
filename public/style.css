@@ -100,10 +100,10 @@ html, body {
   display: flex;
   justify-content: center;
   gap: 8px;
-  height: 40px;
 }
 
 input[type="text"] {
+  flex: 1;
   background: var(--panel);
   border: 1px solid var(--panel-line);
   color: var(--ink);
@@ -287,6 +287,19 @@ input[type="color"]:focus-visible {
   gap: 16px;
 }
 .control-group.two-col > div { flex: 1; }
+
+.control-group.checkbox-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.control-group.checkbox-row .control-label { margin-bottom: 0; }
+.control-group.checkbox-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
 
 .shape-row { display: flex; gap: 8px; }
 .shape-btn {

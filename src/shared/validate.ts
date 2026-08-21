@@ -15,7 +15,8 @@ export function isBobbleSettings(x: unknown): x is BobbleSettings {
     typeof x.backgroundColor === 'string' &&
     isFiniteNumber(x.size) &&
     isFiniteNumber(x.speed) &&
-    isFiniteNumber(x.range)
+    isFiniteNumber(x.range) &&
+    typeof x.beepOnBounce === 'boolean'
   );
 }
 
@@ -41,6 +42,7 @@ export function isClientMessage(x: unknown): x is ClientMessage {
         case 'setRange':
           return isFiniteNumber(x.value);
         case 'setRunning':
+        case 'setBeepOnBounce':
           return typeof x.value === 'boolean';
         case 'loadSettings':
           return isBobbleSettings(x.value);

@@ -20,15 +20,16 @@ export class BobbleRenderer {
   // Cached stage geometry — Only recomputed when the stage's own size actually changes
   private stageRect: DOMRect = stage.getBoundingClientRect();
   private lastPainted: PaintedAppearance | null = null;
+  private lastDirection: 1 | -1 | null = null;
 
   constructor() {
     new ResizeObserver(() => { this.stageRect = stage.getBoundingClientRect(); }).observe(stage);
   }
 
-  start(getInput: () => RenderInput): void {
+  start(getInput: () => RenderInput, onBounce?: () => void): void {
     const loop = (): void => {
       const { state, now, visible } = getInput();
-      if (state && visible) { this.paint(state, now); }
+      if (state && visible) { this.paint(state, now, onBounce); }
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
@@ -38,8 +39,14 @@ export class BobbleRenderer {
   refreshStageSize(): void { this.stageRect = stage.getBoundingClientRect(); }
 
   // Private Methods
-  private paint(state: PublicState, now: number): void {
+  private paint(state: PublicState, now: number, onBounce?: () => void): void {
     const sample = computeAt(state, now);
+
+    if (onBounce && sample.speed > 0 && this.lastDirection !== null && sample.direction !== this.lastDirection) {
+      onBounce();
+    }
+    this.lastDirection = sample.direction;
+
     const rect = this.stageRect;
 
     const x = sample.fraction * rect.width;

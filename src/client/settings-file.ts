@@ -20,6 +20,6 @@ export function parseSettingsFile(text: string): BobbleSettings | null {
   }
   if (!isBobbleSettings(parsed)) { return null; }
 
-  const { shape, bobbleColor, backgroundColor, size, speed, range } = parsed;
-  return { shape, bobbleColor, backgroundColor, size, speed, range };
+  const { shape, bobbleColor, backgroundColor, size, speed, range, beepOnBounce } = parsed;
+  return { shape, bobbleColor, backgroundColor, size, speed, range, beepOnBounce };
 }
