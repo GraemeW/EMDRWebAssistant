@@ -64,6 +64,7 @@ src/
     room-connections.ts     Per-room director seat + viewer roster + room-scoped broadcast
     room.ts                 Room's BobbleSession + RoomConnections + teardown timer
     room-manager.ts         Room lookup/create, empty-room teardown, max-rooms eviction
+    logger.ts               JSON-lines event log (room/director/viewer lifecycle) to stdout — no files, no rotation; the host platform retains it
     message-router.ts       Parse incoming frames and route them to the right room's session + connections
   shared/
     types.ts             WebSocket message protocol & session-state types
@@ -160,6 +161,33 @@ MAX_ROOMS=100   # default
 
 If a new room would be created past this cap, the oldest existing room is torn down first — anyone still connected to it receives a `{ type: 'kicked' }` message.
 
+### Logging
+
+The server writes one JSON object per line to **stdout** — nowhere else. 
+
+There's deliberately no log file or rotation to manage: this is meant to run on read-only/ephemeral hosting, where there's no writable, persistent disk to keep files on.
+
+If you're self-hosting on a VM instead (see [Simple Deployment](#simple-deployment) below), your process manager captures stdout — `journalctl -u emdr-assistant` for systemd, `pm2 logs` for PM2 — and you can pipe that to a file with rotation on the host side if you want it kept longer than the process manager's own retention.
+
+Events logged:
+
+| Event                          | Fired when                                         | Fields                            |
+| ------------------------------ | -------------------------------------------------- | --------------------------------- |
+| `room_created`                 | a new room is created                              | `room`, `activeRooms`, `maxRooms` |
+| `room_deleted`                 | a room is torn down (inactivity *or* cap eviction) | `room`, `reason`, `activeRooms`   |
+| `director_joined`              | a director wins the seat in a room                 | `room`                            |
+| `director_left`                | a director's connection leaves a room              | `room`                            |
+| `director_replaced`            | a second director logs in and takes the seat       | `room`                            |
+| `director_auth_failed`         | a passphrase attempt doesn't verify                | `room`, `attempts`                |
+| `viewer_joined`                | a viewer joins a room                              | `room`                            |
+| `viewer_left`                  | a viewer's connection leaves a room                | `room`                            |
+| `server_start` / `server_stop` | the process starts up / shuts down                 | config values / `signal`          |
+
+Every line also gets a `ts` (ISO-8601 timestamp) and `event` name. Example:
+
+```json
+{"ts":"2026-08-03T18:45:06.650Z","event":"room_deleted","room":"rooma","reason":"Room closed to make space for a new session.","activeRooms":0}
+```
 
 ## Rendering Notes
 

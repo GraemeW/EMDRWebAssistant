@@ -1,4 +1,5 @@
 import { Room } from './room.js';
+import type { ServerLogger } from './logger.js';
 
 export interface RoomManagerOptions {
   maxRooms: number;
@@ -8,7 +9,10 @@ export interface RoomManagerOptions {
 export class RoomManager {
   private readonly rooms = new Map<string, Room>();
 
-  constructor(private readonly options: RoomManagerOptions) {}
+  constructor(
+    private readonly options: RoomManagerOptions,
+    private readonly logger: ServerLogger,
+  ) {}
 
   get(name: string): Room | undefined { return this.rooms.get(name); }
 
@@ -27,6 +31,7 @@ export class RoomManager {
 
     const room = new Room(name);
     this.rooms.set(name, room);
+    this.logger.log('room_created', { room: name, activeRooms: this.rooms.size, maxRooms: this.options.maxRooms });
     return room;
   }
 
@@ -35,6 +40,7 @@ export class RoomManager {
     if (!room) { return; }
     this.rooms.delete(name);
     room.dispose(reason);
+    this.logger.log('room_deleted', { room: name, reason, activeRooms: this.rooms.size });
   }
 
   noteConnectionLeft(name: string): void {

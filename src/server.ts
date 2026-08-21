@@ -5,6 +5,7 @@ import express from 'express';
 import { loadConfig } from './server/config.js';
 import { DirectorAuth } from './server/auth.js';
 import { ConnectionAcceptor } from './server/connections.js';
+import { createLogger } from './server/logger.js';
 import { RoomManager } from './server/room-manager.js';
 import { MessageRouter } from './server/message-router.js';
 
@@ -14,13 +15,14 @@ const app = express();
 app.use(express.static(path.join(__dirname, '..', 'public')));
 const httpServer = http.createServer(app);
 
+const logger = createLogger();
 const auth = new DirectorAuth(config.directorPassphrase);
 const acceptor = new ConnectionAcceptor(httpServer);
-const rooms = new RoomManager({
-  maxRooms: config.maxRooms,
-  emptyRoomTeardownMs: config.emptyRoomTeardownMs,
-});
-const router = new MessageRouter(rooms, acceptor, auth);
+const rooms = new RoomManager(
+  { maxRooms: config.maxRooms, emptyRoomTeardownMs: config.emptyRoomTeardownMs },
+  logger,
+);
+const router = new MessageRouter(rooms, acceptor, auth, logger);
 
 acceptor.onConnection((ws) => {
   ws.on('message', (raw) => router.handleRawMessage(ws, raw));
@@ -32,4 +34,20 @@ httpServer.listen(config.port, config.host, () => {
   console.log(`EMDR Web Assistant server listening on http://${config.host}:${config.port}`);
   console.log('Director passphrase is set via the DIRECTOR_PASSPHRASE env var (defaults to "director").');
   console.log(`Rooms: up to ${config.maxRooms} concurrent, torn down after ${config.emptyRoomTeardownMs / 60_000} min empty.`);
+  console.log('Event log: stdout (JSON-lines) — capture/retention is handled by your hosting platform.');
+  logger.log('server_start', {
+    port: config.port,
+    host: config.host,
+    maxRooms: config.maxRooms,
+    emptyRoomTeardownMs: config.emptyRoomTeardownMs,
+  });
 });
+
+function shutdown(signal: string): void {
+  logger.log('server_stop', { signal });
+  httpServer.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 2000).unref(); // fallback in case close() hangs on open sockets
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));

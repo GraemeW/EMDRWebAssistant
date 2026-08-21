@@ -6,6 +6,7 @@ import type { ClientSocket, ConnectionAcceptor } from './connections.js';
 import type { DirectorAuth } from './auth.js';
 import type { Room } from './room.js';
 import type { RoomManager } from './room-manager.js';
+import type { ServerLogger } from './logger.js';
 
 // Tunables
 const MAX_FAILED_ADMIN_ATTEMPTS = 5;
@@ -18,6 +19,7 @@ export class MessageRouter {
     private readonly rooms: RoomManager,
     private readonly acceptor: ConnectionAcceptor,
     private readonly auth: DirectorAuth,
+    private readonly logger: ServerLogger,
   ) {}
 
   handleRawMessage(ws: ClientSocket, raw: RawData): void {
@@ -38,6 +40,7 @@ export class MessageRouter {
     const room = this.rooms.get(roomName);
     if (!room) { return; }
 
+    this.logDeparture(ws, roomName);
     room.connections.leave(ws);
     this.broadcastRoomState(room);
     this.rooms.noteConnectionLeft(roomName);
@@ -102,6 +105,7 @@ export class MessageRouter {
 
     this.moveToRoom(ws, room, roomName);
     room.connections.markViewer(ws);
+    this.logger.log('viewer_joined', { room: roomName });
     this.acceptor.send(ws, { type: 'joined', role: 'viewer', room: roomName });
     this.broadcastRoomState(room);
   }
@@ -111,6 +115,8 @@ export class MessageRouter {
 
     if (!this.auth.verify(nonce, digest)) {
       const attempts = this.acceptor.incrementFailedAttempts(ws);
+      this.logger.log('director_auth_failed', { room: roomName, attempts });
+
       if (attempts >= MAX_FAILED_ADMIN_ATTEMPTS) {
         this.acceptor.send(ws, {
           type: 'joined',
@@ -134,11 +140,13 @@ export class MessageRouter {
 
     const currentAdmin = room.connections.getAdminSocket();
     if (currentAdmin !== null && currentAdmin !== ws) {
+      this.logger.log('director_replaced', { room: roomName });
       this.acceptor.send(currentAdmin, { type: 'kicked', reason: 'Another director signed in.' });
       currentAdmin.close();
     }
 
     room.connections.claimAdmin(ws);
+    this.logger.log('director_joined', { room: roomName });
     this.acceptor.send(ws, { type: 'joined', role: 'admin', room: roomName });
     this.broadcastRoomState(room);
   }
@@ -148,6 +156,7 @@ export class MessageRouter {
     if (previousRoomName !== null && previousRoomName !== roomName) {
       const previousRoom = this.rooms.get(previousRoomName);
       if (previousRoom) {
+        this.logDeparture(ws, previousRoomName);
         previousRoom.connections.leave(ws);
         this.broadcastRoomState(previousRoom);
         this.rooms.noteConnectionLeft(previousRoomName);
@@ -157,6 +166,14 @@ export class MessageRouter {
     this.acceptor.setRoomName(ws, roomName);
     room.connections.join(ws);
     room.cancelTeardown(); // this room is in active use again
+  }
+
+  private logDeparture(ws: ClientSocket, roomName: string): void {
+    if (ws.role === 'admin') {
+      this.logger.log('director_left', { room: roomName });
+    } else if (ws.role === 'viewer') {
+      this.logger.log('viewer_left', { room: roomName });
+    }
   }
 
   private roomOf(ws: ClientSocket): Room | undefined {
