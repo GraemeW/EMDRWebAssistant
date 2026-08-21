@@ -64,7 +64,7 @@ src/
     room-connections.ts     Per-room director seat + viewer roster + room-scoped broadcast
     room.ts                 Room's BobbleSession + RoomConnections + teardown timer
     room-manager.ts         Room lookup/create, empty-room teardown, max-rooms eviction
-    logger.ts               JSON-lines event log (room/director/viewer lifecycle) to stdout — no files, no rotation; the host platform retains it
+    logger.ts               JSON-lines event log (room/director/viewer lifecycle) to stdout
     message-router.ts       Parse incoming frames and route them to the right room's session + connections
   shared/
     types.ts             WebSocket message protocol & session-state types
