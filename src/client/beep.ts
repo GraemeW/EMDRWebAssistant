@@ -25,7 +25,7 @@ export class BeepPlayer {
     this.ctx = new Ctor();
   }
 
-  play(frequencyHz: number = DEFAULT_BEEP_FREQUENCY_HZ): void {
+  play(frequencyHz: number = DEFAULT_BEEP_FREQUENCY_HZ, pan = 0): void {
     const ctx = this.ctx;
     if (!ctx) { return; }
 
@@ -40,7 +40,17 @@ export class BeepPlayer {
     gain.gain.linearRampToValueAtTime(BEEP_PEAK_GAIN, now + BEEP_ATTACK_SECONDS);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + BEEP_DURATION_SECONDS);
 
-    osc.connect(gain).connect(ctx.destination);
+    osc.connect(gain);
+
+    // Fallback to mono if sterio panning is not supported
+    if (typeof ctx.createStereoPanner === 'function') {
+      const panner = ctx.createStereoPanner();
+      panner.pan.value = Math.min(1, Math.max(-1, pan));
+      gain.connect(panner).connect(ctx.destination);
+    } else {
+      gain.connect(ctx.destination);
+    }
+
     osc.start(now);
     osc.stop(now + BEEP_DURATION_SECONDS + 0.02);
   }

@@ -64,7 +64,7 @@ export class SessionController {
     this.bindFullscreenControl();
 
     this.connection.connect();
-    this.renderer.start(() => this.renderInput(), () => this.handleBounce());
+    this.renderer.start(() => this.renderInput(), (direction) => this.handleBounce(direction));
   }
 
   private renderInput(): RenderInput {
@@ -75,8 +75,11 @@ export class SessionController {
     };
   }
 
-  private handleBounce(): void {
-    if (this.latestState?.beepOnBounce) { this.beepPlayer.play(this.latestState.beepFrequency); }
+  private handleBounce(direction: 1 | -1): void {
+    if (!this.latestState?.beepOnBounce) { return; }
+    // Pan is inverse of direction (direction is the side the bobble is now heading toward)
+    const pan = direction === 1 ? -1 : 1;
+    this.beepPlayer.play(this.latestState.beepFrequency, pan);
   }
 
   // Connection lifecycle

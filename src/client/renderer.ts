@@ -26,7 +26,7 @@ export class BobbleRenderer {
     new ResizeObserver(() => { this.stageRect = stage.getBoundingClientRect(); }).observe(stage);
   }
 
-  start(getInput: () => RenderInput, onBounce?: () => void): void {
+  start(getInput: () => RenderInput, onBounce?: (direction: 1 | -1) => void): void {
     const loop = (): void => {
       const { state, now, visible } = getInput();
       if (state && visible) { this.paint(state, now, onBounce); }
@@ -39,11 +39,11 @@ export class BobbleRenderer {
   refreshStageSize(): void { this.stageRect = stage.getBoundingClientRect(); }
 
   // Private Methods
-  private paint(state: PublicState, now: number, onBounce?: () => void): void {
+  private paint(state: PublicState, now: number, onBounce?: (direction: 1 | -1) => void): void {
     const sample = computeAt(state, now);
 
     if (onBounce && sample.speed > 0 && this.lastDirection !== null && sample.direction !== this.lastDirection) {
-      onBounce();
+      onBounce(sample.direction);
     }
     this.lastDirection = sample.direction;
 
