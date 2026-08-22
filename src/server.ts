@@ -9,9 +9,25 @@ import { createLogger } from './server/logger.js';
 import { RoomManager } from './server/room-manager.js';
 import { MessageRouter } from './server/message-router.js';
 
+// Tunables
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self'",
+  "img-src 'self'",
+  "connect-src 'self' ws: wss:",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+].join('; ');
+
 const config = loadConfig();
 
 const app = express();
+app.use((_req, res, next) => {
+  res.setHeader('Content-Security-Policy', CONTENT_SECURITY_POLICY);
+  next();
+});
 app.use(express.static(path.join(__dirname, '..', 'public')));
 const httpServer = http.createServer(app);
 
