@@ -1,5 +1,5 @@
 // Tunables
-const BEEP_FREQUENCY_HZ = 440;
+const DEFAULT_BEEP_FREQUENCY_HZ = 440;
 const BEEP_PEAK_GAIN = 0.15;
 const BEEP_ATTACK_SECONDS = 0.005;
 const BEEP_DURATION_SECONDS = 0.09;
@@ -25,7 +25,7 @@ export class BeepPlayer {
     this.ctx = new Ctor();
   }
 
-  play(): void {
+  play(frequencyHz: number = DEFAULT_BEEP_FREQUENCY_HZ): void {
     const ctx = this.ctx;
     if (!ctx) { return; }
 
@@ -34,7 +34,7 @@ export class BeepPlayer {
     const gain = ctx.createGain();
 
     osc.type = 'sine';
-    osc.frequency.value = BEEP_FREQUENCY_HZ;
+    osc.frequency.value = frequencyHz;
 
     gain.gain.setValueAtTime(0, now);
     gain.gain.linearRampToValueAtTime(BEEP_PEAK_GAIN, now + BEEP_ATTACK_SECONDS);

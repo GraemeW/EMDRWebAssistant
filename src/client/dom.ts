@@ -34,5 +34,6 @@ export const rangeSlider = requireElement<HTMLInputElement>('range-slider');
 export const bobbleColorInput = requireElement<HTMLInputElement>('bobble-color');
 export const backgroundColorInput = requireElement<HTMLInputElement>('background-color');
 export const beepToggle = requireElement<HTMLInputElement>('beep-toggle');
+export const beepFrequencyInput = requireElement<HTMLInputElement>('beep-frequency');
 export const btnSaveSettings = requireElement<HTMLButtonElement>('btn-save-settings');
 export const btnLoadSettings = requireElement<HTMLButtonElement>('btn-load-settings');

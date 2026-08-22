@@ -16,7 +16,8 @@ export function isBobbleSettings(x: unknown): x is BobbleSettings {
     isFiniteNumber(x.size) &&
     isFiniteNumber(x.speed) &&
     isFiniteNumber(x.range) &&
-    typeof x.beepOnBounce === 'boolean'
+    typeof x.beepOnBounce === 'boolean' &&
+    isFiniteNumber(x.beepFrequency)
   );
 }
 
@@ -40,6 +41,7 @@ export function isClientMessage(x: unknown): x is ClientMessage {
         case 'setSize':
         case 'setSpeed':
         case 'setRange':
+        case 'setBeepFrequency':
           return isFiniteNumber(x.value);
         case 'setRunning':
         case 'setBeepOnBounce':
