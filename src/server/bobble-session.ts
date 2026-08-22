@@ -9,7 +9,14 @@ const DEFAULT_BACKGROUND_COLOR = '#000000';
 const DEFAULT_SPEED = 0.35;
 const DEFAULT_RANGE = 1.0;
 const DEFAULT_BEEP_ON_BOUNCE = false;
+const DEFAULT_BEEP_FREQUENCY_HZ = 440;
+const MIN_BEEP_FREQUENCY_HZ = 100;
+const MAX_BEEP_FREQUENCY_HZ = 2000;
 const INITIAL_X_FRACTION = 0.65;
+
+function clampBeepFrequency(hz: number): number {
+  return Math.min(MAX_BEEP_FREQUENCY_HZ, Math.max(MIN_BEEP_FREQUENCY_HZ, hz));
+}
 
 // Initial State
 function freshState(): SessionState {
@@ -22,6 +29,7 @@ function freshState(): SessionState {
     range: DEFAULT_RANGE,
     running: true,
     beepOnBounce: DEFAULT_BEEP_ON_BOUNCE,
+    beepFrequency: DEFAULT_BEEP_FREQUENCY_HZ,
     anchor: {
       fraction: INITIAL_X_FRACTION,
       direction: 1,
@@ -74,6 +82,9 @@ export class BobbleSession {
       case 'setBeepOnBounce':
         this.state.beepOnBounce = msg.value;
         return;
+      case 'setBeepFrequency':
+        this.state.beepFrequency = clampBeepFrequency(msg.value);
+        return;
       case 'reset': {
         const wasRunning = this.state.running;
         this.state = freshState();
@@ -90,6 +101,7 @@ export class BobbleSession {
         this.state.speed = clamp01(msg.value.speed);
         this.state.range = clamp01(msg.value.range);
         this.state.beepOnBounce = msg.value.beepOnBounce;
+        this.state.beepFrequency = clampBeepFrequency(msg.value.beepFrequency);
         this.state.anchor.speed = this.state.running ? speedToFractionPerSecond(this.state.speed) : 0;
         return;
       }

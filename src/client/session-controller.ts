@@ -30,6 +30,7 @@ import {
   bobbleColorInput,
   backgroundColorInput,
   beepToggle,
+  beepFrequencyInput,
   btnSaveSettings,
   btnLoadSettings,
   btnFullscreen,
@@ -63,7 +64,7 @@ export class SessionController {
     this.bindFullscreenControl();
 
     this.connection.connect();
-    this.renderer.start(() => this.renderInput(), () => this.handleBounce());
+    this.renderer.start(() => this.renderInput(), (direction) => this.handleBounce(direction));
   }
 
   private renderInput(): RenderInput {
@@ -74,8 +75,11 @@ export class SessionController {
     };
   }
 
-  private handleBounce(): void {
-    if (this.latestState?.beepOnBounce) { this.beepPlayer.play(); }
+  private handleBounce(direction: 1 | -1): void {
+    if (!this.latestState?.beepOnBounce) { return; }
+    // Pan is inverse of direction (direction is the side the bobble is now heading toward)
+    const pan = direction === 1 ? -1 : 1;
+    this.beepPlayer.play(this.latestState.beepFrequency, pan);
   }
 
   // Connection lifecycle
@@ -243,6 +247,7 @@ export class SessionController {
     bobbleColorInput.addEventListener('input', () => this.sendControl({ action: 'setBobbleColor', value: bobbleColorInput.value }),);
     backgroundColorInput.addEventListener('input', () => this.sendControl({ action: 'setBackgroundColor', value: backgroundColorInput.value }),);
     beepToggle.addEventListener('change', () => this.sendControl({ action: 'setBeepOnBounce', value: beepToggle.checked }));
+    beepFrequencyInput.addEventListener('input', () => this.sendControl({ action: 'setBeepFrequency', value: Number(beepFrequencyInput.value) }),);
   }
 
   private bindSettingsFileControls(): void { 
@@ -252,8 +257,8 @@ export class SessionController {
 
   private async saveSettingsFile(): Promise<void> {
     if (!this.latestState) { return; }
-    const { shape, bobbleColor, backgroundColor, size, speed, range, beepOnBounce } = this.latestState;
-    const json = serializeSettings({ shape, bobbleColor, backgroundColor, size, speed, range, beepOnBounce });
+    const { shape, bobbleColor, backgroundColor, size, speed, range, beepOnBounce, beepFrequency } = this.latestState;
+    const json = serializeSettings({ shape, bobbleColor, backgroundColor, size, speed, range, beepOnBounce, beepFrequency });
     try {
       await saveTextFile(SETTINGS_FILE_SUGGESTED_NAME, json, 'application/json');
     } catch (err) {
@@ -292,6 +297,7 @@ export class SessionController {
       if (document.activeElement !== bobbleColorInput) bobbleColorInput.value = s.bobbleColor;
       if (document.activeElement !== backgroundColorInput) backgroundColorInput.value = s.backgroundColor;
       if (document.activeElement !== beepToggle) beepToggle.checked = s.beepOnBounce;
+      if (document.activeElement !== beepFrequencyInput) beepFrequencyInput.value = String(s.beepFrequency);
     }
   }
 }
