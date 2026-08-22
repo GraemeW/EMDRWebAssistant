@@ -38,6 +38,9 @@ import {
 
 // Types
 type JoinedMessage = Extract<ServerMessage, { type: 'joined' }>;
+type JoinMemory =
+  | { role: 'admin'; room: string; passphrase: string }
+  | { role: 'viewer'; room: string };
 
 
 export class SessionController {
@@ -45,7 +48,10 @@ export class SessionController {
   private latestState: PublicState | null = null;
   private clockOffset = 0; // serverTime - localTime, sampled on each state message
   private pendingAdminJoin = false;
+  private pendingAdminPassphrase: string | null = null;
   private currentNonce: string | null = null;
+  private lastJoin: JoinMemory | null = null;
+  private pendingRejoin: JoinMemory | null = null;
   private readonly beepPlayer = new BeepPlayer();
 
   constructor(
@@ -87,6 +93,9 @@ export class SessionController {
   private handleOpen(): void {
     adminHint.textContent = '';
     viewerHint.textContent = '';
+    // If we were previously joined to a session, this 'open' is a reconnect — queue a silent rejoin. 
+    // For a director it can't be sent yet: the digest needs a fresh nonce, which arrives moments later as a 'challenge' message.
+    if (this.lastJoin) { this.pendingRejoin = this.lastJoin; }
   }
 
   private handleClose(): void {
@@ -107,6 +116,7 @@ export class SessionController {
         return;
       case 'challenge':
         this.currentNonce = msg.nonce;
+        void this.maybeCompleteRejoin();
         return;
       case 'kicked':
         this.leaveSession(msg.reason);
@@ -122,20 +132,55 @@ export class SessionController {
     if (this.pendingAdminJoin) {
       this.pendingAdminJoin = false;
       if (msg.role === 'admin') {
-        this.enterSession('admin', msg.room ?? '');
+        this.enterSession('admin', msg.room ?? '', this.pendingAdminPassphrase ?? '');
       } else {
-        adminHint.textContent = msg.error ?? 'Could not join as director.';
-        if (msg.role === 'viewer') { this.enterSession('viewer', msg.room ?? ''); }
+        this.reportJoinFailure(msg.error ?? 'Could not join as director.', adminHint);
       }
-    } else if (msg.role === 'viewer') {
-      this.enterSession('viewer', msg.room ?? '');
-    } else if (msg.error) {
-      viewerHint.textContent = msg.error;
+      this.pendingAdminPassphrase = null;
+      return;
     }
+
+    if (msg.role === 'viewer') {
+      this.enterSession('viewer', msg.room ?? '');
+      return;
+    }
+
+    this.reportJoinFailure(msg.error ?? 'Could not join.', viewerHint);
   }
 
-  private enterSession(role: Role, room: string): void {
+  // Called whenever a join attempt is rejected. 
+  // Manual attempt -> reason shown on the landing form directly.
+  // Rejoin failure -> already mid-session —> drop back to the landing screen with the reason.
+  private reportJoinFailure(reason: string, hintEl: HTMLElement): void {
+    if (this.myRole !== null) {
+      this.leaveSession(reason);
+      return;
+    }
+    hintEl.textContent = reason;
+  }
+
+  // Reconnect queued a rejoin (see handleOpen) — a fresh nonce for a director, or nothing extra for a viewer — send it
+  private async maybeCompleteRejoin(): Promise<void> {
+    const pending = this.pendingRejoin;
+    if (!pending) { return; }
+    this.pendingRejoin = null;
+
+    if (pending.role === 'viewer') {
+      this.connection.send({ type: 'join', role: 'viewer', room: pending.room });
+      return;
+    }
+
+    if (!this.currentNonce || !isSecureCryptoAvailable()) { return; } // give up quietly; next reconnect will try again
+
+    const digest = await hmacSha256Hex(pending.passphrase, this.currentNonce);
+    this.pendingAdminJoin = true;
+    this.pendingAdminPassphrase = pending.passphrase;
+    this.connection.send({ type: 'join', role: 'admin', digest, room: pending.room });
+  }
+
+  private enterSession(role: Role, room: string, adminPassphrase?: string): void {
     this.myRole = role;
+    this.lastJoin = role === 'admin' ? { role: 'admin', room, passphrase: adminPassphrase ?? '' } : { role: 'viewer', room };
     landing.classList.add('hidden');
     session.classList.remove('hidden');
     roleBadge.textContent = role === 'admin' ? 'director' : 'viewer';
@@ -148,6 +193,9 @@ export class SessionController {
   // Landing screen
   private leaveSession(reason: string): void {
     this.myRole = null;
+    this.lastJoin = null;
+    this.pendingRejoin = null;
+    this.pendingAdminPassphrase = null;
     session.classList.add('hidden');
     landing.classList.remove('hidden');
     adminHint.textContent = reason;
@@ -197,6 +245,7 @@ export class SessionController {
 
     const digest = await hmacSha256Hex(passphrase, this.currentNonce);
     this.pendingAdminJoin = true;
+    this.pendingAdminPassphrase = passphrase;
     adminHint.textContent = '';
     this.connection.send({ type: 'join', role: 'admin', digest, room });
   }
