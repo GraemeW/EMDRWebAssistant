@@ -12,10 +12,10 @@ import { MessageRouter } from './server/message-router.js';
 // Tunables
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "script-src 'self'",
+  "script-src 'self' https://canner.ca https://api.canner.ca",
   "style-src 'self'",
   "img-src 'self'",
-  "connect-src 'self' ws: wss:",
+  "connect-src 'self' ws: wss: https://api.canner.ca https://canner.ca",
   "base-uri 'none'",
   "form-action 'none'",
   "frame-ancestors 'none'",
