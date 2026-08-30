@@ -13,7 +13,8 @@ import { MessageRouter } from './server/message-router.js';
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "script-src 'self' https://canner.ca https://api.canner.ca",
-  "style-src 'self'",
+  "style-src 'self' https://fonts.googleapis.com;",
+  "font-src 'self' https://fonts.gstatic.com;",
   "img-src 'self'",
   "connect-src 'self' ws: wss: https://api.canner.ca https://canner.ca",
   "base-uri 'none'",
@@ -47,7 +48,7 @@ acceptor.onConnection((ws) => {
 });
 
 httpServer.listen(config.port, config.host, () => {
-  console.log(`EMDR Web Assistant server listening on http://${config.host}:${config.port}`);
+  console.log(`The Window Sill server listening on http://${config.host}:${config.port}`);
   console.log('Director passphrase is set via the DIRECTOR_PASSPHRASE env var (defaults to "director").');
   console.log(`Rooms: up to ${config.maxRooms} concurrent, torn down after ${config.emptyRoomTeardownMs / 60_000} min empty.`);
   console.log('Event log: stdout (JSON-lines) — capture/retention is handled by your hosting platform.');
