@@ -1,6 +1,6 @@
-# EMDR Web Assistant
+# EMDR Web Assistant (The Window Sill)
 
-A NodeJS port of the Unity EMDR Assistant app. One person joins as the **director** and controls shape, color, size, speed, travel range, background color, and play/pause. The client can then join as a **viewer** and watch the same bobble, in sync, in real time.
+A NodeJS port of the Unity EMDR Assistant app. One person joins as the **director** and controls shape, color, size, speed, travel range, background color, beep-on-bounce, and play/pause. The client can then join as a **viewer** and watch the same bobble, in sync, in real time.
 
 ![](./docs/EMDRWebApp-Demo.gif)
 
@@ -73,9 +73,10 @@ src/
     motion.ts               Bounce/ramp position math
   client/
     client.ts             Slim composition root: wires connection/renderer/controller together
-    connection.ts           WebSocket lifecycle (connect/reconnect/send)
+    connection.ts           WebSocket lifecycle (connect/reconnect/send, heartbeat ping/pong)
     dom.ts                   Typed element lookups
     renderer.ts               Per-frame paint loop
+    beep.ts                    Web Audio beep-on-bounce (stereo-panned oscillator, one-shot)
     crypto.ts                  HMAC login digest via the Web Crypto API
     settings-file.ts            Settings file format: serialize/parse/validate (pure data, no browser APIs)
     file-io.ts                   Native save/open file-picker mechanics
@@ -128,11 +129,23 @@ Note also that `tsconfig.server.json` sets `"module": "Node16"` / `"moduleResolu
 
 ## Basic Functionality Overview
 
-- **Server (`server.ts`)** holds the one authoritative session: current shape/color/size/speed/range/background/running state, plus an "anchor" (a position + direction + instantaneous speed + timestamp) it can use to analytically compute bobble speed/position at any later moment. 
+- **Server (`server.ts`)** holds the one authoritative session: current shape/color/size/speed/range/background/running/beep state, plus an "anchor" (a position + direction + instantaneous speed + timestamp) it can use to analytically compute bobble speed/position at any later moment. 
   - This mirrors `BobbleMover.cs`'s ping-pong motion and its speed-ramp easing, expressed as a closed-form formula (a piecewise ramp-then-constant speed profile, integrated to get distance) instead of a per-frame physics step, so the server never needs to run a game loop.
 - Only one WebSocket connection can hold the **director** role at a time. If the director disconnects, the bobble keeps doing whatever it was doing, and the seat is free to reclaim.
 - The other connection is a **viewer**: read-only, gets the live state and renders the same motion locally using the same shared `computeAt` formula, so all screens track closely without the server streaming a position every frame.
-- State changes (color, shape, size, speed, range, play/pause, reset) are broadcast to everyone instantly over WebSocket.
+- State changes (color, shape, size, speed, range, beep on/off, beep frequency, play/pause, reset) are broadcast to everyone instantly over WebSocket.
+
+## Beep on Bounce
+
+The director can turn on a short beep (100–2000 Hz, configurable) that plays whenever the bobble reaches either edge and changes direction.
+
+`beepOnBounce` and `beepFrequency` are two fields in the same synced `SessionState`/`PublicState` as shape/color/size/etc. The beep itself is never sent over the wire. Each client's `renderer.ts` independently notices when its own local position hits an extent, and fires a local Web Audio oscillator (`beep.ts`). Since every client is computing the same motion from the same anchor, they beep in sync without the server ever broadcasting a "bounce happened" event.
+
+Browsers only allow audio to start from inside a user gesture, so `BeepPlayer.unlock()` is called synchronously inside the join-session click handler, before anything `async` happens — calling it any later (e.g. after an `await`) silently fails to produce sound in some browsers.
+
+## Connection Keepalive & Auto-Reconnect
+
+Every client sends a `{ type: 'ping' }` every 20s once connected and expects a `{ type: 'pong' }` back; if a previous ping never got answered by the time the next one is due, the client treats the socket as dead, closes it, and reconnects (1.5s later) rather than waiting for the browser/OS to eventually notice a half-open TCP connection on its own. This is what keeps a viewer or director from silently going stale after a laptop sleep, a flaky wifi handoff, or a proxy/load-balancer that drops idle connections after some corporate-default (e.g. 60s) idle timeout.
 
 ## Rooms (Multiple Simultaneous Sessions)
 
@@ -233,7 +246,7 @@ This lets a director whose connection went stale (closed laptop, network hiccup,
 
 ## Settings File (Save/Load)
 
-The admin console has Save/Load buttons to locally save the bobble's tunable settings:  shape, bobble color, background color, size, speed, and travel range.
+The admin console has Save/Load buttons to locally save the bobble's tunable settings: shape, bobble color, background color, size, speed, travel range, beep on/off, and beep frequency.
 
 Save format is plain JSON:
 
@@ -245,9 +258,28 @@ Save format is plain JSON:
   "backgroundColor": "#000000",
   "size": 0.3,
   "speed": 0.35,
-  "range": 1
+  "range": 1,
+  "beepOnBounce": false,
+  "beepFrequency": 440
 }
 ```
+
+## Content Security Policy
+
+`server.ts` sets a `Content-Security-Policy` header on every response (see the `CONTENT_SECURITY_POLICY` constant). Currently allowlisted, beyond `'self'`:
+
+| Directive     | Origins allowed                             | Why                                                                               |
+| ------------- | ------------------------------------------- | --------------------------------------------------------------------------------- |
+| `script-src`  | `canner.ca`, `api.canner.ca`                | Canner analytics + vitals scripts (see [Analytics](#analytics))                   |
+| `style-src`   | `fonts.googleapis.com`                      | Fetches the Google Fonts CSS file (`<link rel="stylesheet">`)                     |
+| `font-src`    | `fonts.gstatic.com`                         | The actual font binary files, which live on a different origin than the CSS above |
+| `connect-src` | `ws:`, `wss:`, `api.canner.ca`, `canner.ca` | The app's own WebSocket, plus the analytics beacon                                |
+
+**If you add any new third-party resource** (another font, an image CDN, a different analytics/embed script, a different WebSocket target, etc.), the browser will silently block it until its origin is added to the matching directive above.
+
+## Analytics
+
+`index.html` loads a small third-party analytics script from [Canner](https://canner.ca) (`t.js`, plus a `vitals.js` beacon), tagged with a site ID and a `data-domains` allowlist of the domains it should track on (currently `emdr-web-assistant.canner.app`, `thewindowsill.ca`, `www.thewindowsill.ca`). If the app is ever redeployed under a different domain, that `data-domains` attribute needs updating, or Canner will simply decline to record anything for the new domain.
 
 ## Deploying Behind an Existing Nginx or Apache 
 
