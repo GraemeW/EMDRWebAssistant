@@ -35,6 +35,7 @@ html, body {
   --panel: #fdfdf9;
   --panel-line: #cbe3d1;
   --accent: #d1ebfb;
+  --accent-fg: #3f7ba1;
   --accent-dim: #cbdeea;
   --accent-text: #2a2008;
   --danger: #b5574c;
@@ -75,7 +76,7 @@ html, body {
 }
 
 .wordmark .dot {
-  color: var(--accent);
+  color: var(--accent-fg);
   display: inline-block;
   animation: pulse 2.6s ease-in-out infinite;
 }
@@ -134,7 +135,7 @@ input[type="text"]:focus,
 button:focus-visible,
 input[type="range"]:focus-visible,
 input[type="color"]:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-fg);
   outline-offset: 2px;
 }
 
@@ -186,7 +187,7 @@ input[type="color"]:focus-visible {
   border-color: var(--accent-dim);
   color: var(--ink);
 }
-.btn-secondary:hover { border-color: var(--accent); }
+.btn-secondary:hover { border-color: var(--accent-fg); }
 
 .btn-ghost {
   background: transparent;
@@ -207,6 +208,7 @@ input[type="color"]:focus-visible {
   --panel: #2c1e15;
   --panel-line: #4a3626;
   --accent: #d1ebfb;
+  --accent-fg: var(--accent);
   --accent-dim: #8fa8b7;
   --accent-text: #241a0c;
   --danger: #c77f7f;
