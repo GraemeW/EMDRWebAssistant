@@ -57,6 +57,7 @@ httpServer.listen(config.port, config.host, () => {
     host: config.host,
     maxRooms: config.maxRooms,
     emptyRoomTeardownMs: config.emptyRoomTeardownMs,
+    nodeVersion: process.version,
   });
 });
 

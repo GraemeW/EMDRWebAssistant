@@ -4,6 +4,9 @@
   "private": true,
   "description": "EMDR Web Assistant",
   "main": "dist/server.js",
+  "engines": {
+    "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
+  },
   "scripts": {
     "build": "npm run build:server && npm run build:client",
     "build:server": "tsc -p tsconfig.server.json",
