@@ -8,7 +8,7 @@ Written in TypeScript, strict mode, with a shared, type-checked message protocol
 
 ## Running
 
-Requires Node.js (v18+) and npm.
+Requires Node.js and npm. Use Node 22.23.4+, 24.22.1+ or 26.12.1+. `.nvmrc` pins a patched version for nvm users.
 
 ```bash
 npm install
@@ -194,7 +194,7 @@ Events logged:
 | `director_auth_failed`         | a passphrase attempt doesn't verify                | `room`, `attempts`                |
 | `viewer_joined`                | a viewer joins a room                              | `room`                            |
 | `viewer_left`                  | a viewer's connection leaves a room                | `room`                            |
-| `server_start` / `server_stop` | the process starts up / shuts down                 | config values / `signal`          |
+| `server_start` / `server_stop` | the process starts up / shuts down                 | config values + `nodeVersion` / `signal` |
 
 Every line also gets a `ts` (ISO-8601 timestamp) and `event` name. Example:
 
